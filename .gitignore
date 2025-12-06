@@ -112,3 +112,11 @@ outputs/
 .vscode/
 .idea/
 __MACOSX/
+
+
+# datasets
+*.npy
+*.pkl
+*.csv
+*.txt
+twitter-datasets/

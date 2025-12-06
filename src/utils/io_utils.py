@@ -1,32 +1,16 @@
-import json
-from collections import OrderedDict
-from pathlib import Path
+import pickle
+import numpy as np
 
-ROOT_PATH = Path(__file__).absolute().resolve().parent.parent.parent
+def load_stopwords(path="stopwords.pkl"):
+    with open(path, "rb") as f:
+        stopwords = pickle.load(f)
+    # add <user> as extra stopword
+    stopwords = set(stopwords)
+    stopwords.add("<user>")
+    return stopwords
 
-
-def read_json(fname):
-    """
-    Read the given json file.
-
-    Args:
-        fname (str): filename of the json file.
-    Returns:
-        json (list[OrderedDict] | OrderedDict): loaded json.
-    """
-    fname = Path(fname)
-    with fname.open("rt") as handle:
-        return json.load(handle, object_hook=OrderedDict)
-
-
-def write_json(content, fname):
-    """
-    Write the content to the given json file.
-
-    Args:
-        content (Any JSON-friendly): content to write.
-        fname (str): filename of the json file.
-    """
-    fname = Path(fname)
-    with fname.open("wt") as handle:
-        json.dump(content, handle, indent=4, sort_keys=False)
+def load_vocab_and_embeddings(vocab_path="vocab.pkl", emb_path="embeddings.npy"):
+    with open(vocab_path, "rb") as f:
+        vocab = pickle.load(f)
+    embeddings = np.load(emb_path)
+    return vocab, embeddings

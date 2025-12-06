@@ -1,79 +1,33 @@
-from src.metrics.tracker import MetricTracker
-from src.trainer.base_trainer import BaseTrainer
+# src/trainer/twitter_trainer.py
 
+import numpy as np
+from helpers import create_csv_submission
+from src.utils.io_utils import load_stopwords, load_vocab_and_embeddings
+from src.datasets.twitter import load_training_tweets, load_test_tweets
+from src.transforms.text_embeddings import tweets_to_matrix
+from src.model.logreg import build_logreg   # ou from model.svm import build_linear_svm
 
-class Trainer(BaseTrainer):
-    """
-    Trainer class. Defines the logic of batch logging and processing.
-    """
+def train_and_predict(
+    data_dir="twitter-datasets",
+    vocab_path="vocab.pkl",
+    emb_path="embeddings.npy",
+    submission_name="submission.csv"
+):
+    vocab, embeddings = load_vocab_and_embeddings(vocab_path, emb_path)
+    stopwords = load_stopwords("stopwords.pkl")
 
-    def process_batch(self, batch, metrics: MetricTracker):
-        """
-        Run batch through the model, compute metrics, compute loss,
-        and do training step (during training stage).
+    tweets_train, y_train = load_training_tweets(
+        data_dir=data_dir, use_full=True, stopwords=stopwords, do_plots=False
+    )
+    X_train = tweets_to_matrix(tweets_train, vocab, embeddings, stopwords)
 
-        The function expects that criterion aggregates all losses
-        (if there are many) into a single one defined in the 'loss' key.
+    classifier = build_logreg(C=1.0, max_iter=1000)
+    classifier.fit(X_train, y_train)
 
-        Args:
-            batch (dict): dict-based batch containing the data from
-                the dataloader.
-            metrics (MetricTracker): MetricTracker object that computes
-                and aggregates the metrics. The metrics depend on the type of
-                the partition (train or inference).
-        Returns:
-            batch (dict): dict-based batch containing the data from
-                the dataloader (possibly transformed via batch transform),
-                model outputs, and losses.
-        """
-        batch = self.move_batch_to_device(batch)
-        batch = self.transform_batch(batch)  # transform batch on device -- faster
+    test_ids, test_tweets = load_test_tweets(data_dir=data_dir)
+    X_test = tweets_to_matrix(test_tweets, vocab, embeddings, stopwords)
+    y_test_pred = classifier.predict(X_test)
+    y_test_pred = np.where(y_test_pred >= 0, 1, -1).astype(int)
 
-        metric_funcs = self.metrics["inference"]
-        if self.is_train:
-            metric_funcs = self.metrics["train"]
-            self.optimizer.zero_grad()
-
-        outputs = self.model(**batch)
-        batch.update(outputs)
-
-        all_losses = self.criterion(**batch)
-        batch.update(all_losses)
-
-        if self.is_train:
-            batch["loss"].backward()  # sum of all losses is always called loss
-            self._clip_grad_norm()
-            self.optimizer.step()
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step()
-
-        # update metrics for each loss (in case of multiple losses)
-        for loss_name in self.config.writer.loss_names:
-            metrics.update(loss_name, batch[loss_name].item())
-
-        for met in metric_funcs:
-            metrics.update(met.name, met(**batch))
-        return batch
-
-    def _log_batch(self, batch_idx, batch, mode="train"):
-        """
-        Log data from batch. Calls self.writer.add_* to log data
-        to the experiment tracker.
-
-        Args:
-            batch_idx (int): index of the current batch.
-            batch (dict): dict-based batch after going through
-                the 'process_batch' function.
-            mode (str): train or inference. Defines which logging
-                rules to apply.
-        """
-        # method to log data from you batch
-        # such as audio, text or images, for example
-
-        # logging scheme might be different for different partitions
-        if mode == "train":  # the method is called only every self.log_step steps
-            # Log Stuff
-            pass
-        else:
-            # Log Stuff
-            pass
+    create_csv_submission(test_ids, y_test_pred, submission_name)
+    print(f"Submission file created: {submission_name}")
