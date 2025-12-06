@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from scipy.sparse import *
 import numpy as np
 import pickle
@@ -15,7 +14,7 @@ def main():
     print("using nmax =", nmax, ", cooc.max() =", cooc.max())
 
     print("initializing embeddings")
-    embedding_dim = 20
+    embedding_dim = 50
     xs = np.random.normal(size=(cooc.shape[0], embedding_dim))
     ys = np.random.normal(size=(cooc.shape[1], embedding_dim))
 

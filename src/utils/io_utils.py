@@ -6,7 +6,6 @@ def load_stopwords(path="stopwords.pkl"):
         stopwords = pickle.load(f)
     # add <user> as extra stopword
     stopwords = set(stopwords)
-    stopwords.add("<user>")
     return stopwords
 
 def load_vocab_and_embeddings(vocab_path="vocab.pkl", emb_path="embeddings.npy"):

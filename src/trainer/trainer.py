@@ -1,11 +1,11 @@
-# src/trainer/twitter_trainer.py
-
 import numpy as np
 from helpers import create_csv_submission
 from src.utils.io_utils import load_stopwords, load_vocab_and_embeddings
 from src.datasets.twitter import load_training_tweets, load_test_tweets
 from src.transforms.text_embeddings import tweets_to_matrix
-from src.model.logreg import build_logreg   # ou from model.svm import build_linear_svm
+from src.model.logreg import build_logreg
+from src.trainer.validation import train_val_split, evaluate_model
+from src.trainer.tuning import tune_logreg
 
 def train_and_predict(
     data_dir="twitter-datasets",
@@ -21,7 +21,20 @@ def train_and_predict(
     )
     X_train = tweets_to_matrix(tweets_train, vocab, embeddings, stopwords)
 
-    classifier = build_logreg(C=1.0, max_iter=1000)
+    X_tr, X_val, y_tr, y_val = train_val_split(X_train, y_train, val_size=0.1)
+
+    classifier = tune_logreg(X_tr, y_tr, cv_folds=5, plot=False)
+    classifier.fit(X_tr, y_tr)
+    
+    val_acc, val_cm = evaluate_model(classifier, X_val, y_val)
+
+    print("Missclassification error score:", 1-val_acc)
+    TP = val_cm[1, 1]
+    FP = val_cm[0, 1]
+    FN = val_cm[1, 0]
+    TN = val_cm[0, 0]
+    print(f"VAL -> TP:{TP}, FP:{FP}, FN:{FN}, TN:{TN}")
+
     classifier.fit(X_train, y_train)
 
     test_ids, test_tweets = load_test_tweets(data_dir=data_dir)
