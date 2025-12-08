@@ -5,7 +5,7 @@ from src.datasets.twitter import load_training_tweets, load_test_tweets
 from src.transforms.text_embeddings import tweets_to_matrix
 from src.model.logreg import build_logreg
 from src.trainer.validation import train_val_split, evaluate_model
-from src.trainer.tuning import tune_logreg
+from src.trainer.tuning import tune_logreg, tune_svm
 
 def train_and_predict(
     data_dir="twitter-datasets",
@@ -21,9 +21,9 @@ def train_and_predict(
     )
     X_train = tweets_to_matrix(tweets_train, vocab, embeddings, stopwords)
 
-    X_tr, X_val, y_tr, y_val = train_val_split(X_train, y_train, val_size=0.1)
+    X_tr, X_val, y_tr, y_val = train_val_split(X_train, y_train, val_size=0.2)
 
-    classifier = tune_logreg(X_tr, y_tr, cv_folds=5, plot=False)
+    classifier = tune_svm(X_tr, y_tr, cv_folds=5, plot=False)
     classifier.fit(X_tr, y_tr)
     
     val_acc, val_cm = evaluate_model(classifier, X_val, y_val)
