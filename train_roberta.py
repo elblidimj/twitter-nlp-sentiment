@@ -4,9 +4,13 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# -------------------------
+from helpers import create_csv_submission
+from src.datasets.twitter import load_test_tweets
+
+
+# ============================================================
 # Dataset
-# -------------------------
+# ============================================================
 class TwitterSentimentDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_len=128):
         self.texts = texts
@@ -32,9 +36,9 @@ class TwitterSentimentDataset(Dataset):
         return item
 
 
-# -------------------------
-# Load data
-# -------------------------
+# ============================================================
+# Load training data
+# ============================================================
 def load_train_data(data_dir="twitter-datasets", use_full=True):
     if use_full:
         pos_path = f"{data_dir}/train_pos_full.txt"
@@ -49,14 +53,15 @@ def load_train_data(data_dir="twitter-datasets", use_full=True):
         neg = [line.strip() for line in f]
 
     texts = pos + neg
-    # For RoBERTa classification head: labels must be 0/1
+    # IMPORTANT: RoBERTa expects labels in {0,1}
     labels = [1] * len(pos) + [0] * len(neg)
+
     return texts, labels
 
 
-# -------------------------
-# Train
-# -------------------------
+# ============================================================
+# Train + Validate + Create Submission
+# ============================================================
 def train_roberta(
     data_dir="twitter-datasets",
     model_name="roberta-base",
@@ -69,21 +74,22 @@ def train_roberta(
     print("Device:", device)
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_name, num_labels=2
+    )
     model.to(device)
 
     print(">>> Tokenizer and model loaded")
-    print(">>> Model on device:", device)
 
     texts, labels = load_train_data(data_dir=data_dir, use_full=True)
 
     print(">>> Data loaded")
     print(">>> Number of samples:", len(texts))
-    print(">>> First example:", texts[0][:100])
-    print(">>> Labels distribution:",
-        sum(labels), "/", len(labels))
+    print(">>> Labels distribution:", sum(labels), "/", len(labels))
 
-    # Simple train/val split (90/10)
+    # -------------------------
+    # Train / Val split (90/10)
+    # -------------------------
     idx = np.arange(len(texts))
     np.random.seed(42)
     np.random.shuffle(idx)
@@ -99,19 +105,24 @@ def train_roberta(
     print(">>> Train size:", len(train_texts))
     print(">>> Val size:", len(val_texts))
 
-    train_ds = TwitterSentimentDataset(train_texts, train_labels, tokenizer, max_len=max_len)
-    val_ds = TwitterSentimentDataset(val_texts, val_labels, tokenizer, max_len=max_len)
+    train_ds = TwitterSentimentDataset(
+        train_texts, train_labels, tokenizer, max_len=max_len
+    )
+    val_ds = TwitterSentimentDataset(
+        val_texts, val_labels, tokenizer, max_len=max_len
+    )
 
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
 
-    print(">>> DataLoaders created")
     print(">>> Train batches:", len(train_loader))
     print(">>> Val batches:", len(val_loader))
 
     optimizer = AdamW(model.parameters(), lr=lr)
 
+    # ============================================================
     # Training loop
+    # ============================================================
     for epoch in range(epochs):
         print(f"\n===== Epoch {epoch+1}/{epochs} =====")
         model.train()
@@ -131,17 +142,21 @@ def train_roberta(
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch+1} finished | Avg loss: {total_loss / len(train_loader):.4f}")
+        print(
+            f"Epoch {epoch+1} finished | "
+            f"Avg loss: {total_loss / len(train_loader):.4f}"
+        )
 
-
-        # Validation: accuracy
+        # -------------------------
+        # Validation (accuracy)
+        # -------------------------
         model.eval()
         correct = 0
         total = 0
 
         with torch.no_grad():
             for batch in val_loader:
-                labels_batch = batch["labels"].numpy()  # ground truth on CPU
+                labels_batch = batch["labels"].numpy()
 
                 batch = {k: v.to(device) for k, v in batch.items()}
                 logits = model(**batch).logits
@@ -153,8 +168,49 @@ def train_roberta(
         acc = correct / total
         print(f"Epoch {epoch+1}/{epochs} - Val accuracy: {acc:.4f}")
 
+    # ============================================================
+    # TEST SET PREDICTION + SUBMISSION
+    # ============================================================
+    print("\n===== Generating submission =====")
+
+    test_ids, test_texts = load_test_tweets(data_dir=data_dir)
+    print(">>> Test samples:", len(test_texts))
+
+    test_encodings = tokenizer(
+        test_texts,
+        truncation=True,
+        padding=True,
+        max_length=max_len,
+        return_tensors="pt"
+    )
+
+    model.eval()
+    preds = []
+
+    with torch.no_grad():
+        for i in range(0, len(test_texts), batch_size):
+            batch = {
+                k: v[i:i + batch_size].to(device)
+                for k, v in test_encodings.items()
+            }
+            logits = model(**batch).logits
+            batch_preds = torch.argmax(logits, dim=1)
+            preds.extend(batch_preds.cpu().numpy())
+
+    preds = np.array(preds)          # {0,1}
+    y_submit = np.where(preds == 0, -1, 1)  # {-1, +1}
+
+    create_csv_submission(test_ids, y_submit, "submission.csv")
+    print("submission.csv created successfully")
 
 
+# ============================================================
 if __name__ == "__main__":
     print(">>> Script started")
-    train_roberta(epochs=1, batch_size=16, lr=2e-5, max_len=128)
+    train_roberta(
+        epochs=1,
+        batch_size=16,
+        lr=2e-5,
+        max_len=128
+    )
+
