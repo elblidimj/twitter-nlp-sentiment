@@ -28,7 +28,7 @@ def load_training_tweets(data_dir="twitter-datasets", use_full=True,
 
     tweets = pos_tweets + neg_tweets
     y_pos = np.ones(len(pos_tweets), dtype=int)
-    y_neg = -np.ones(len(neg_tweets), dtype=int)
+    y_neg = np.zeros(len(neg_tweets), dtype=int)
     y = np.concatenate([y_pos, y_neg])
 
     return tweets, y

@@ -1,18 +1,19 @@
 from torch.optim import AdamW
 
 import torch
-from src.datasets.bertweet_loader import BERTweetNormalizer
+from src.datasets.bertweet_loader import BERTweetNormalizer, OptimizedTweetDataset
 from src.model.bertweet import build_model
 from torch.utils.data import DataLoader
 from transformers import (
-    get_cosine_schedule_with_warmup
+    AutoTokenizer,
+    get_cosine_schedule_with_warmup,
 )
 from torch.optim import AdamW
 from tqdm import tqdm
 
 from sklearn.metrics import accuracy_score, f1_score
 
-def fast_evaluate(self, data_loader,device,model):
+def fast_evaluate(data_loader,device,model):
     model.eval()
     all_preds = []
     all_labels = []
@@ -23,7 +24,7 @@ def fast_evaluate(self, data_loader,device,model):
             attention_mask = batch['attention_mask'].to(device, non_blocking=True)
             labels = batch['labels']
 
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
             preds = torch.argmax(outputs.logits, dim=1).cpu()
             all_preds.extend(preds.numpy())
@@ -33,8 +34,13 @@ def fast_evaluate(self, data_loader,device,model):
     f1 = f1_score(all_labels, all_preds, average='binary')
     return acc, f1
 
-def train(self, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.device('cpu'),lr=0.01):
+def train(X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.device('cpu'),lr=0.01):
     model = build_model(device)
+    tokenizer = AutoTokenizer.from_pretrained(
+            'vinai/bertweet-base',
+            normalization=True,
+            use_fast=True
+        )
     print("\n" + "="*70)
     print("Training")
     print("="*70)
@@ -44,13 +50,14 @@ def train(self, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=t
     WEIGHT_DECAY = 0.01
     with open(CSV_FILE, 'w') as f:
         f.write("epoch,step,global_step,loss,train_acc,lr,val_acc,val_f1\n")
-
+    normalizer = BERTweetNormalizer()
     print("\n[1/5] Normalizing data...")
-    X_train = BERTweetNormalizer.normalize_batch(X_train)
-    X_val = BERTweetNormalizer.normalize_batch(X_val)
-
-    train_loader = DataLoader(X_train, y_train, batch_size=batch_size,shuffle=True)
-    val_loader = DataLoader(X_val, y_val,batch_size=batch_size, shuffle=False)
+    X_train = normalizer.normalize_batch(X_train)
+    X_val = normalizer.normalize_batch(X_val)
+    train_dataset = OptimizedTweetDataset(X_train, y_train, tokenizer, 100)
+    val_dataset = OptimizedTweetDataset(X_val, y_val, tokenizer, 100)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
+    val_loader = DataLoader(val_dataset,batch_size=batch_size, shuffle=False)
 
     print("\n[3/5] Setting up optimizer...")
     no_decay = ['bias', 'LayerNorm.weight', 'LayerNorm.bias']
@@ -61,7 +68,7 @@ def train(self, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=t
 
     optimizer = AdamW(optimizer_grouped_parameters, lr=lr, eps=1e-8)
 
-    total_steps = len(train_loader) * epoch // GRADIENT_ACCUMULATION
+    total_steps = len(train_loader) * epochs // GRADIENT_ACCUMULATION
     warmup_steps = int(total_steps * WARMUP_RATIO)
 
     scheduler = get_cosine_schedule_with_warmup(
@@ -135,9 +142,10 @@ def train(self, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=t
     return best_val_acc
 
 
-def predict(self, texts,model,device):
+def predict(texts,model,device):
     print("\nNormalizing test data...")
-    texts = BERTweetNormalizer.normalize_batch(texts)
+    normalizer = BERTweetNormalizer()
+    texts = normalizer.normalize_batch(texts)
     dummy_labels = [0] * len(texts)
     test_loader = DataLoader(texts, dummy_labels, shuffle=False)
 
@@ -150,7 +158,7 @@ def predict(self, texts,model,device):
             input_ids = batch['input_ids'].to(device, non_blocking=True)
             attention_mask = batch['attention_mask'].to(device, non_blocking=True)
 
-            outputs = self.model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
             preds = torch.argmax(outputs.logits, dim=1)
             predictions.extend(preds.cpu().numpy())
