@@ -9,11 +9,11 @@ def load_training_tweets(data_dir="twitter-datasets", use_full=True,
     data_dir = Path(data_dir)
 
     if use_full:
-        pos_path = data_dir / "train_pos_full.txt"
-        neg_path = data_dir / "train_neg_full.txt"
+        pos_path = data_dir / "train_pos_full_processed.txt"
+        neg_path = data_dir / "train_neg_full_processed.txt"
     else:
-        pos_path = data_dir / "train_pos.txt"
-        neg_path = data_dir / "train_neg.txt"
+        pos_path = data_dir / "train_pos_processed.txt"
+        neg_path = data_dir / "train_neg_processed.txt"
 
     with open(pos_path, "r", encoding="utf-8") as f:
         pos_tweets = [line.strip() for line in f]
@@ -36,7 +36,7 @@ def load_training_tweets(data_dir="twitter-datasets", use_full=True,
 
 def load_test_tweets(data_dir="twitter-datasets"):
     data_dir = Path(data_dir)
-    test_path = data_dir / "test_data.txt"
+    test_path = data_dir / "test_data_processed.txt"
 
     with open(test_path, "r", encoding="utf-8") as f:
         tweets = [line.strip() for line in f]

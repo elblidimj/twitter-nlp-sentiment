@@ -1,26 +1,33 @@
-# src/transforms/text_embeddings.py
-
 import numpy as np
 
-def tweet_to_vec(tweet, vocab, embeddings, stopwords=None):
-    words = tweet.strip().split()
-    vecs = []
+MAX_LEN = 30 
 
-    for w in words:
-        if stopwords is not None and w in stopwords:
+def tweet_to_vec_indices(tweet, vocab, stopwords=None, max_len=MAX_LEN):
+    """
+    Convert a tweet into a vector of indices
+    """
+    tokens = tweet.strip().split()
+    indices = []
+
+    for w in tokens:
+        if stopwords and w in stopwords:
             continue
-        idx = vocab.get(w)
-        if idx is not None:
-            vecs.append(embeddings[idx])
+        idx = vocab.get(w, 0)
+        if idx > 0: 
+            indices.append(idx)
 
-    if not vecs:
-        return np.zeros(embeddings.shape[1], dtype=np.float32)
+    if len(indices) > max_len:
+        indices = indices[:max_len]
 
-    return np.mean(np.stack(vecs), axis=0).astype(np.float32)
-
+    padded_sequence = np.zeros(max_len, dtype=np.int32)
+    padded_sequence[:len(indices)] = indices
+    
+    return padded_sequence
 
 def tweets_to_matrix(tweets, vocab, embeddings, stopwords=None):
-    X = np.zeros((len(tweets), embeddings.shape[1]), dtype=np.float32)
+    X = np.zeros((len(tweets), MAX_LEN), dtype=np.int32) 
+    
     for i, t in enumerate(tweets):
-        X[i] = tweet_to_vec(t, vocab, embeddings, stopwords)
+        X[i] = tweet_to_vec_indices(t, vocab, stopwords)
+        
     return X

@@ -10,7 +10,7 @@ def main():
 
     data, row, col = [], [], []
     counter = 1
-    for fn in ["twitter-datasets/train_pos_ngrams.txt", "twitter-datasets/train_neg_ngrams.txt"]:
+    for fn in ["twitter-datasets/train_pos_processed.txt", "twitter-datasets/train_neg_processed.txt"]:
         with open(fn, encoding="utf-8", errors="ignore") as f:
             for line in f:
                 tokens = [vocab.get(t, -1) for t in line.strip().split()]
