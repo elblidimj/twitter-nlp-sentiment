@@ -21,12 +21,12 @@ CONTRACTIONS = {
 
 NEGATIONS = {"not", "no", "never", "nor", "nothing", "nowhere", "cannot", "none", "neither"}
 
+
 def split_hashtag(match):
     hashtag = match.group(0)[1:] # Remove the #
     if hashtag.isupper(): return hashtag 
     # CamelCase split: #GoodDay -> Good Day
     return " ".join(re.findall(r'[a-zA-Z][^A-Z]*', hashtag))
-
 def handle_negation(tokens):
     """Appends _NEG to the word immediately following a negation term."""
     new_toks = []
@@ -59,42 +59,31 @@ def handle_word_repetition(tokens):
     return new_toks
 
 def augment_line(line):
-    # 1. Lowercase & Basic Clean
-    text = line.strip().lower()
-
-    # 2. Contraction Expansion
+    text = line.strip()
     for contraction, expansion in CONTRACTIONS.items():
         text = text.replace(contraction, expansion)
 
-    # 3. Emoticon Handling (Before punctuation removal)
     text = re.sub(r"(?::|;|=)(?:-)?(?:\)|\}|\]|>|D)", " <SMILE> ", text)
     text = re.sub(r"(?::|;|=)(?:-)?(?:\(|\{|\[|<)", " <SAD> ", text)
 
-    # 4. Hashtag Tokenization
-    text = re.sub(r"#\w+", split_hashtag, text)
+    #text = re.sub(r"#\w+", split_hashtag, text)
 
-    # 5. Ellipses, ! and ? isolation
     text = text.replace('...', ' <DOTS> ')
     text = text.replace('!', ' ! ')
     text = text.replace('?', ' ? ')
 
-    # 6. Character Repetition (e.g., "coool" -> "cool <REP_3>")
     def char_rep(match):
         char = match.group(1)
         full_seq = match.group(0)
         return f"{char}{char} <REP_{len(full_seq)}> "
     text = re.sub(r"([a-z])\1{2,}", char_rep, text)
 
-    # 7. Number Normalization
     text = re.sub(r'\d+', ' <NUM> ', text)
 
-    # 8. Punctuation Removal (Keep tags and preserved marks)
     text = re.sub(r'[^\w\s<!>\?]', ' ', text)
 
-    # 9. White space cleanup
     text = re.sub(r'\s+', ' ', text).strip()
 
-    # 10. Token-based logic: Word Repetition & Negation Tagging
     toks = text.split()
     toks = handle_word_repetition(toks)
     toks = handle_negation(toks)
@@ -108,7 +97,6 @@ def main():
             continue
         with open(inp, encoding="utf-8") as fin, open(out, "w", encoding="utf-8") as fout:
             for line in fin:
-                # Basic dedup check could be added here if needed
                 augmented = augment_line(line)
                 fout.write(augmented + "\n")
         print(f"Wrote {out}")

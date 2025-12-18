@@ -1,75 +1,91 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
-from helpers import create_csv_submission
-from src.utils.io_utils import load_stopwords, load_vocab_and_embeddings, load_idf_weights
-from src.datasets.twitter import load_training_tweets, load_test_tweets
-from src.transforms.text_embeddings import tweets_to_matrix
-from src.model.logreg import build_logreg
-from src.trainer.validation import train_val_split, evaluate_model
-from src.trainer.tuning_base import tune_logreg, tune_svm
-from src.model.cnn import build_cnn_model, save_cnn_visualizations
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+from sklearn.metrics import accuracy_score, f1_score
+from src.model.cnn import TwitterCNN
 
-def train_and_predict(
-    data_dir="twitter-datasets",
-    vocab_path="vocab.pkl",
-    emb_path="embeddings.npy",
-    submission_name="submission.csv"
-):
-    vocab, embeddings = load_vocab_and_embeddings(vocab_path, emb_path)
+def train_cnn(X, y, model, device, embeddings, lr, epochs=6):
+    vocab_size = embeddings.shape[0]
+    X = np.clip(X, 0, vocab_size - 1)    
+    y_pt = np.where(y == 1, 1, 0)
 
-    tweets_train, y_train = load_training_tweets(
-        data_dir=data_dir, use_full=True, stopwords=None, do_plots=False
-    )
-    X_train = tweets_to_matrix(tweets_train, vocab, embeddings, None)
-
-    y_train_keras = np.where(y_train == 1, 1, 0)
-
-    X_tr, X_val, y_tr_keras, y_val_keras = train_val_split(X_train, y_train_keras, val_size=0.1)
-
-    classifier = build_cnn_model(embeddings) 
-    early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
-    reduce_lr = ReduceLROnPlateau(
-        monitor='val_loss', 
-        factor=0.5,      
-        patience=2,      
-        min_lr=0.00001
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    full_loader = DataLoader(
+        TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), 
+        batch_size=512, shuffle=True
     )
 
-    print("--- Starting CNN Training ---")
-    
-    history = classifier.fit(
-        X_tr, y_tr_keras,
-        epochs=10, 
-        batch_size=512, 
-        validation_data=(X_val, y_val_keras), 
-        callbacks=[early_stopping, reduce_lr]
-    )
-    
-    print("Generating and saving visualizations...")
-    vocab_inv = {i: w for w, i in vocab.items()}
-    sample_indices = X_val[0]
-    sample_words = [vocab_inv.get(idx, '<PAD>') for idx in sample_indices]
-    
-    save_cnn_visualizations(
-        model=classifier, 
-        history=history, 
-        sample_tweet_indices=sample_indices, 
-        vocab_inv=sample_words
-    )
+    for epoch in range(epochs):
+        model.train()
+        epoch_loss = 0
+        for bx, by in full_loader:
+            bx, by = bx.to(device), by.to(device).view(-1, 1)
+            optimizer.zero_grad()
+            outputs = model(bx)
+            loss = nn.BCELoss()(outputs, by)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+        print(f"CNN Epoch {epoch+1}/{epochs} | Avg Loss: {epoch_loss/len(full_loader):.4f}")
+    return model
 
-    val_loss, val_acc = classifier.evaluate(X_val, y_val_keras, verbose=0)
-    print(f"VAL -> Accuracy after CNN: {val_acc:.4f}")
+def predict_cnn(model, device, X_test, embeddings):
+    vocab_size = embeddings.shape[0]
+    X_test = np.clip(X_test, 0, vocab_size - 1)
     
-    print("Final training on the complete dataset...")
-    classifier.fit(X_train, y_train_keras, epochs=1, batch_size=128) # One additional epoch
+    model.eval()
+    with torch.no_grad():
+        test_inputs = torch.from_numpy(X_test).long().to(device)
+        test_probs = model(test_inputs).cpu().numpy()
+        predictions = np.where(test_probs > 0.5, 1, -1).astype(int).flatten()
+    return predictions
 
-    test_ids, test_tweets = load_test_tweets(data_dir=data_dir)
+def grid_cnn(X_train, y_train, X_val, y_val, embeddings, device):
+    y_train_pt = np.where(y_train == 1, 1, 0)
+    y_val_pt = np.where(y_val == 1, 1, 0)
 
-    X_test = tweets_to_matrix(test_tweets, vocab, embeddings, stopwords=None) 
-    
-    y_test_pred_probs = classifier.predict(X_test)
-    
-    y_test_pred = np.where(y_test_pred_probs > 0.5, 1, -1).astype(int)
+    param_grid = {
+        "learning_rate": [0.001, 0.0005],
+        "kernel_size": [3, 5],
+        "filters": [64, 128],
+    }
 
-    create_csv_submission(test_ids, y_test_pred, submission_name)
-    print(f"Submission file created: {submission_name}")
+    best_f1 = 0.0
+    best_config = None
+
+    for lr in param_grid["learning_rate"]:
+        for k in param_grid["kernel_size"]:
+            for f in param_grid["filters"]:
+                print(f"\nEvaluating CNN: LR={lr}, K={k}, F={f}")
+                model = TwitterCNN(embeddings, kernel_size=k, filters=f).to(device)
+                optimizer = optim.Adam(model.parameters(), lr=lr)
+                
+                train_loader = DataLoader(TensorDataset(torch.from_numpy(X_train).long(), torch.from_numpy(y_train_pt).float()), batch_size=512, shuffle=True)
+                val_loader = DataLoader(TensorDataset(torch.from_numpy(X_val).long(), torch.from_numpy(y_val_pt).float()), batch_size=512)
+
+                for _ in range(2): # Short training for grid search
+                    model.train()
+                    for bx, by in train_loader:
+                        bx, by = bx.to(device), by.to(device).view(-1, 1)
+                        optimizer.zero_grad()
+                        nn.BCELoss()(model(bx), by).backward()
+                        optimizer.step()
+
+                model.eval()
+                val_preds = []
+                with torch.no_grad():
+                    for bx, by in val_loader:
+                        bx = bx.to(device)
+                        outputs = model(bx).cpu().numpy()
+                        val_preds.extend((outputs > 0.5).astype(int).flatten())
+
+                current_f1 = f1_score(y_val_pt, val_preds)
+                print(f"F1 Score: {current_f1:.4f}")
+                if current_f1 > best_f1:
+                    best_f1 = current_f1
+                    best_config = (lr, k, f)
+
+    print(f"Best Configuration: LR={best_config[0]}, K={best_config[1]}, F={best_config[2]}")
+    return best_config

@@ -52,7 +52,7 @@ if __name__ == '__main__':
     args = parse_args()
     set_seed(42)
     print("Loading data...")
-    train_texts, train_labels = load_training_tweets(use_full=False)
+    train_texts, train_labels = load_training_tweets(use_full=True)
     test_ids, test_texts = load_test_tweets()
 
     X_train, X_val, y_train, y_val = train_test_split(
@@ -147,11 +147,64 @@ if __name__ == '__main__':
         print(f"[BiLSTM] Val Accuracy: {val_acc:.4f} | Val F1: {val_f1:.4f}")
 
     elif args.model == "cnn":
-        from src.trainer.trainer_cnn import train_and_predict
+        from src.model.cnn import build_cnn
+        from src.trainer.trainer_cnn import train_cnn, predict_cnn, grid_cnn
+    
+        # Default params
+        kernel_size = 3
+        filters = 128
+        learning_rate = 0.0005
+        
+        X_train_mat = tweets_to_matrix(X_train, vocab, embeddings, None)
+        X_val_mat = tweets_to_matrix(X_val, vocab, embeddings, None)
+    
+        if args.cv is True:
+            learning_rate, kernel_size, filters = grid_cnn(
+                X_train_mat, y_train, 
+                X_val_mat, y_val, 
+                embeddings, device
+            )
+    
+        model = build_cnn(embeddings, kernel_size=kernel_size, filters=filters).to(device)
+        train_cnn(X_train_mat, y_train, model, device, embeddings, learning_rate)
+    
+        X_test = tweets_to_matrix(test_texts, vocab, embeddings, None)
+        predictions = predict_cnn(model, device, X_test, embeddings)
 
-        train_and_predict(submission_name="submission_cnn.csv")
-        exit(0)
+        val_loader = DataLoader(
+            TensorDataset(
+                torch.from_numpy(X_val_mat).long(),
+                torch.from_numpy(y_val).float()
+            ),
+            batch_size=512,
+            shuffle=False
+        )
+        model.eval()
 
+        val_preds = []
+        val_targets = []
+
+        with torch.no_grad():
+            for bx, by in val_loader:
+                bx = bx.to(device)
+                by = by.to(device)
+
+                # CNN output shape check: squeeze if necessary to match (B,)
+                probs = model(bx).squeeze()   
+                preds = (probs > 0.5).long()   # Thresholding for binary {0,1}
+
+                val_preds.append(preds.cpu())
+                val_targets.append(by.cpu())
+
+        # Concatenate and convert to numpy for sklearn metrics
+        val_preds = torch.cat(val_preds).numpy()
+        val_targets = torch.cat(val_targets).numpy()
+
+        # Metrics calculation
+        val_acc = accuracy_score(val_targets, val_preds)
+        val_f1  = f1_score(val_targets, val_preds)
+
+        print(f"[CNN] Final Val Accuracy: {val_acc:.4f} | Val F1: {val_f1:.4f}")
     else:
         raise ValueError(f"Unknown model {args.model}")
 
