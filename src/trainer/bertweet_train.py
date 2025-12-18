@@ -1,7 +1,7 @@
 from torch.optim import AdamW
 
 import torch
-from src.datasets.bertweet_loader import BERTweetNormalizer, OptimizedTweetDataset
+from src.datasets.bertweet_loader import BERTweetNormalizer, BERTweetDataset
 from src.model.bertweet import build_model
 from torch.utils.data import DataLoader
 from transformers import (
@@ -41,25 +41,24 @@ def train(X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.d
             normalization=True,
             use_fast=True
         )
-    print("\n" + "="*70)
-    print("Training")
-    print("="*70)
     CSV_FILE = 'log_train.csv'
     GRADIENT_ACCUMULATION = 2
     WARMUP_RATIO = 0.06
     WEIGHT_DECAY = 0.01
     with open(CSV_FILE, 'w') as f:
         f.write("epoch,step,global_step,loss,train_acc,lr,val_acc,val_f1\n")
+
     normalizer = BERTweetNormalizer()
-    print("\n[1/5] Normalizing data...")
+    print("\nNormalizing data...")
     X_train = normalizer.normalize_batch(X_train)
     X_val = normalizer.normalize_batch(X_val)
-    train_dataset = OptimizedTweetDataset(X_train, y_train, tokenizer, 100)
-    val_dataset = OptimizedTweetDataset(X_val, y_val, tokenizer, 100)
+    train_dataset = BERTweetDataset(X_train, y_train, tokenizer, 100)
+    val_dataset = BERTweetDataset(X_val, y_val, tokenizer, 100)
     train_loader = DataLoader(train_dataset, batch_size=batch_size,shuffle=True)
     val_loader = DataLoader(val_dataset,batch_size=batch_size, shuffle=False)
 
-    print("\n[3/5] Setting up optimizer...")
+    print("\nSetting up optimizer...")
+
     no_decay = ['bias', 'LayerNorm.weight', 'LayerNorm.bias']
     optimizer_grouped_parameters = [
         {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': WEIGHT_DECAY},
@@ -75,7 +74,7 @@ def train(X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.d
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
     )
 
-    print("\n[4/5] Training...")
+    print("\nTraining...")
     best_val_acc = 0
     global_step = 0
 
@@ -130,7 +129,7 @@ def train(X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.d
 
         print("Validating...")
         val_acc, val_f1 = fast_evaluate(val_loader,device,model)
-        print(f"✓ Val Acc: {val_acc:.4f} | Val F1: {val_f1:.4f}")
+        print(f"Val Acc: {val_acc:.4f} | Val F1: {val_f1:.4f}")
 
         with open(CSV_FILE, 'a') as f:
             f.write(f"{epoch+1},END,{global_step},,,,{val_acc:.5f},{val_f1:.5f}\n")

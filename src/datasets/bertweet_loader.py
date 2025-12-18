@@ -1,7 +1,7 @@
 import re
 import emoji
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset,
 class BERTweetNormalizer:
     """Optimized normalizer using compiled regex"""
 
@@ -24,7 +24,7 @@ class BERTweetNormalizer:
     def normalize_batch(self, texts):
         return [self.normalize(t) for t in texts]
     
-class OptimizedTweetDataset(Dataset):
+class BERTweetDataset(Dataset):
     """Memory-efficient dataset"""
 
     def __init__(self, texts, labels, tokenizer, max_length, cache_encodings=False):
