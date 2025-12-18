@@ -1,12 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, Subset
+from sklearn.model_selection import KFold
+import pandas as pd
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score
+import os
+import itertools
 from src.model.cnn import TwitterCNN
 
-def train_cnn(X, y, model, device, embeddings, lr, epochs=6):
+SAVE_PATH = "twitter-datasets"
+
+def train_cnn(X, y, model, device, embeddings, lr, epochs=3):
     vocab_size = embeddings.shape[0]
     X = np.clip(X, 0, vocab_size - 1)    
     y_pt = np.where(y == 1, 1, 0)
@@ -42,50 +47,95 @@ def predict_cnn(model, device, X_test, embeddings):
         predictions = np.where(test_probs > 0.5, 1, -1).astype(int).flatten()
     return predictions
 
-def grid_cnn(X_train, y_train, X_val, y_val, embeddings, device):
-    y_train_pt = np.where(y_train == 1, 1, 0)
-    y_val_pt = np.where(y_val == 1, 1, 0)
 
+### Code for Cross-Validation obtaining the bast parameters for CNN
+def grid_cnn(X, y, embeddings, device):
+    """
+    Performs 3-Fold Cross-Validation over a hyperparameter grid.
+    Returns: best_lr, best_k, best_f, best_d
+    """
+    vocab_size = embeddings.shape[0]
+    X = np.clip(X, 0, vocab_size - 1)
+    y_pt = np.where(y == 1, 1, 0)
+
+    # 1. Define Hyperparameter Grid
     param_grid = {
-        "learning_rate": [0.001, 0.0005],
-        "kernel_size": [3, 5],
-        "filters": [64, 128],
+        'learning_rate': [0.001, 0.0005],
+        'kernel_size': [3, 5],
+        'filters': [64, 128],
+        'dropout': [0.3, 0.5]
     }
-
-    best_f1 = 0.0
+    
+    keys, values = zip(*param_grid.items())
+    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    
+    performance_log = []
+    best_acc = 0.0
     best_config = None
 
-    for lr in param_grid["learning_rate"]:
-        for k in param_grid["kernel_size"]:
-            for f in param_grid["filters"]:
-                print(f"\nEvaluating CNN: LR={lr}, K={k}, F={f}")
-                model = TwitterCNN(embeddings, kernel_size=k, filters=f).to(device)
-                optimizer = optim.Adam(model.parameters(), lr=lr)
+    print("--- Starting CNN 3-Fold Cross-Validation ---")
+
+    for config in combinations:
+        config_name = f"LR_{config['learning_rate']}_K_{config['kernel_size']}_F_{config['filters']}_D_{config['dropout']}"
+        print(f"\nEvaluating: {config_name}")
+        
+        kfold = KFold(n_splits=3, shuffle=True, random_state=42)
+        dataset = TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float())
+
+        for fold, (train_ids, val_ids) in enumerate(kfold.split(X)):
+            train_loader = DataLoader(Subset(dataset, train_ids), batch_size=1024, shuffle=True)
+            val_loader = DataLoader(Subset(dataset, val_ids), batch_size=1024)
+
+            model = TwitterCNN(
+                embeddings, 
+                kernel_size=config['kernel_size'], 
+                filters=config['filters'], 
+                dropout_rate=config['dropout']
+            ).to(device)
+            
+            optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
+            criterion = nn.BCELoss()
+
+            # Short training for grid search (2 epochs)
+            for epoch in range(2):
+                model.train()
+                for bx, by in train_loader:
+                    bx, by = bx.to(device), by.to(device).view(-1, 1)
+                    optimizer.zero_grad()
+                    loss = criterion(model(bx), by)
+                    loss.backward()
+                    optimizer.step()
                 
-                train_loader = DataLoader(TensorDataset(torch.from_numpy(X_train).long(), torch.from_numpy(y_train_pt).float()), batch_size=512, shuffle=True)
-                val_loader = DataLoader(TensorDataset(torch.from_numpy(X_val).long(), torch.from_numpy(y_val_pt).float()), batch_size=512)
-
-                for _ in range(2): # Short training for grid search
-                    model.train()
-                    for bx, by in train_loader:
-                        bx, by = bx.to(device), by.to(device).view(-1, 1)
-                        optimizer.zero_grad()
-                        nn.BCELoss()(model(bx), by).backward()
-                        optimizer.step()
-
+                # Validation Metrics after each epoch
                 model.eval()
-                val_preds = []
+                tp, tn, fp, fn = 0, 0, 0, 0
                 with torch.no_grad():
-                    for bx, by in val_loader:
-                        bx = bx.to(device)
-                        outputs = model(bx).cpu().numpy()
-                        val_preds.extend((outputs > 0.5).astype(int).flatten())
+                    for vx, vy in val_loader:
+                        vx, vy = vx.to(device), vy.to(device).view(-1, 1)
+                        v_out = model(vx)
+                        v_pred = (v_out > 0.5).float()
+                        tp += ((v_pred == 1) & (vy == 1)).sum().item()
+                        tn += ((v_pred == 0) & (vy == 0)).sum().item()
+                        fp += ((v_pred == 1) & (vy == 0)).sum().item()
+                        fn += ((v_pred == 0) & (vy == 1)).sum().item()
+                
+                acc = (tp + tn) / (tp + tn + fp + fn)
+                performance_log.append({
+                    'Config_Name': config_name, 'Fold': fold + 1, 'Epoch': epoch + 1,
+                    'TP': tp, 'TN': tn, 'FP': fp, 'FN': fn, 'Accuracy': acc
+                })
 
-                current_f1 = f1_score(y_val_pt, val_preds)
-                print(f"F1 Score: {current_f1:.4f}")
-                if current_f1 > best_f1:
-                    best_f1 = current_f1
-                    best_config = (lr, k, f)
+        # Calculate mean accuracy for this config across all folds and epochs
+        current_mean = np.mean([entry['Accuracy'] for entry in performance_log if entry['Config_Name'] == config_name])
+        print(f"Mean CV Accuracy: {current_mean:.4f}")
+        
+        if current_mean > best_acc:
+            best_acc = current_mean
+            best_config = (config['learning_rate'], config['kernel_size'], config['filters'], config['dropout'])
 
-    print(f"Best Configuration: LR={best_config[0]}, K={best_config[1]}, F={best_config[2]}")
+    # Save log for visualization
+    os.makedirs(SAVE_PATH, exist_ok=True)
+    pd.DataFrame(performance_log).to_csv(os.path.join(SAVE_PATH, "cnn_experiment_results.csv"), index=False)
+    
+    print(f"\ Best CV Config: LR={best_config[0]}, K={best_config[1]}, F={best_config[2]}, D={best_config[3]}")
     return best_config

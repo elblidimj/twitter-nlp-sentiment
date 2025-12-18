@@ -152,22 +152,20 @@ if __name__ == '__main__':
     elif args.model == "cnn":
         from src.model.cnn import build_cnn
         from src.trainer.trainer_cnn import train_cnn, predict_cnn, grid_cnn
-    
+
+        #Obtained by cross-validation with grid_cnn(...)
         kernel_size = 3
         filters = 128
-        learning_rate = 0.0005
+        learning_rate = 0.001
+        dropout_rate = 0.3
         
         X_train_mat = tweets_to_matrix(X_train, vocab, embeddings, None)
         X_val_mat = tweets_to_matrix(X_val, vocab, embeddings, None)
     
         if args.tuning is True:
-            learning_rate, kernel_size, filters = grid_cnn(
-                X_train_mat, y_train, 
-                X_val_mat, y_val, 
-                embeddings, device
-            )
+            learning_rate, kernel_size, filters, dropout_rate = grid_cnn(X_train_mat, y_train, embeddings, device)
     
-        model = build_cnn(embeddings, kernel_size=kernel_size, filters=filters).to(device)
+        model = build_cnn(embeddings, kernel_size=kernel_size, filters=filters, dropout_rate= dropout_rate).to(device)
         train_cnn(X_train_mat, y_train, model, device, embeddings, learning_rate)
     
         X_test = tweets_to_matrix(test_texts, vocab, embeddings, None)
