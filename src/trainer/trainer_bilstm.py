@@ -6,7 +6,6 @@ import numpy as np
 from sklearn.metrics import accuracy_score, f1_score
 
 from src.model.bilstm import BiLSTM
-from helpers import create_csv_submission
 
 SAVE_PATH = "twitter-datasets"
 

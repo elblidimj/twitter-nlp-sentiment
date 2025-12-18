@@ -28,7 +28,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--cv",
+        "--tuning",
         type=lambda x: x.lower() == "true",
         default=False,
         help="Enable cross-validation (True / False)"
@@ -99,7 +99,7 @@ if __name__ == '__main__':
         X_train =tweets_to_matrix(X_train, vocab, embeddings, None)
         X_val = tweets_to_matrix(X_val, vocab, embeddings, None)
 
-        if args.cv is True:
+        if args.tuning is True:
             learning_rate, hidden_size, dropout_rate = grid_lstm(
     X_train, y_train,
     X_val, y_val,
@@ -157,7 +157,7 @@ if __name__ == '__main__':
         X_train_mat = tweets_to_matrix(X_train, vocab, embeddings, None)
         X_val_mat = tweets_to_matrix(X_val, vocab, embeddings, None)
     
-        if args.cv is True:
+        if args.tuning is True:
             learning_rate, kernel_size, filters = grid_cnn(
                 X_train_mat, y_train, 
                 X_val_mat, y_val, 
