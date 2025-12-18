@@ -54,8 +54,7 @@ def predict_lstm(model, device, test_ids,X_test,embeddings):
         test_probs = model(test_inputs).cpu().numpy()
         y_test_pred = np.where(test_probs > 0.5, 1, -1).astype(int)
 
-    create_csv_submission(test_ids, y_test_pred, "submission_bilstm_final.csv")
-    print("Process Complete. Submission saved as 'submission_bilstm_final.csv'")
+    return y_test_pred
 
 def grid_lstm(X_train, y_train, X_val, y_val, embeddings, device):
     y_train_pt = np.where(y_train == 1, 1, 0)
