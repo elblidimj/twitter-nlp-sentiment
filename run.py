@@ -6,6 +6,9 @@ from src.trainer.trainer_bilstm import predict_lstm, train_lstm, grid_lstm
 from src.utils.io_utils import load_vocab_and_embeddings
 from src.model.bilstm import build_lstm
 from src.transforms.text_embeddings import tweets_to_matrix
+from sklearn.metrics import accuracy_score, f1_score
+from torch.utils.data import DataLoader, TensorDataset
+
 import argparse
 import pandas as pd
 import torch
@@ -39,9 +42,15 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+def eval_from_predictions(y_true, y_pred):
+    acc = accuracy_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+    return acc, f1
+
+
 if __name__ == '__main__':
     args = parse_args()
-
+    set_seed(42)
     print("Loading data...")
     train_texts, train_labels = load_training_tweets(use_full=False)
     test_ids, test_texts = load_test_tweets()
@@ -74,6 +83,14 @@ if __name__ == '__main__':
             model=model,
             device=device
         )
+        val_preds = predict_bert(
+        X_val,
+        model=model,
+        device=device
+    )
+
+        val_acc, val_f1 = eval_from_predictions(y_val, val_preds)
+        print(f"\n[BERTweet] Val Accuracy: {val_acc:.4f} | Val F1: {val_f1:.4f}")
 
     elif args.model == "bilstm":
         hidden_size = 128
@@ -92,11 +109,42 @@ if __name__ == '__main__':
 
 
         model = build_lstm(embeddings, hidden_size, dropout_rate)
-
+        model.to(device)
         train_lstm(X_train, y_train, model, device, embeddings, learning_rate)
 
         X_test = tweets_to_matrix(test_texts, vocab, embeddings, None)
-        predictions = predict_lstm(model, device, X_test)
+        predictions = predict_lstm(model, device, test_ids, X_test,embeddings)
+        val_loader = DataLoader(
+        TensorDataset(
+            torch.from_numpy(X_val).long(),
+            torch.from_numpy(y_val).float()
+        ),
+        batch_size=512,
+        shuffle=False
+    )
+        model.eval()
+
+        val_preds = []
+        val_targets = []
+
+        with torch.no_grad():
+            for bx, by in val_loader:
+                bx = bx.to(device)
+                by = by.to(device)
+
+                probs = model(bx).squeeze(1)   # shape: (B,)
+                preds = (probs > 0.5).long()   # {0,1}
+
+                val_preds.append(preds.cpu())
+                val_targets.append(by.cpu())
+
+        val_preds = torch.cat(val_preds).numpy()
+        val_targets = torch.cat(val_targets).numpy()
+
+        val_acc = accuracy_score(val_targets, val_preds)
+        val_f1  = f1_score(val_targets, val_preds)
+
+        print(f"[BiLSTM] Val Accuracy: {val_acc:.4f} | Val F1: {val_f1:.4f}")
 
     elif args.model == "cnn":
         from src.trainer.trainer_cnn import train_and_predict
