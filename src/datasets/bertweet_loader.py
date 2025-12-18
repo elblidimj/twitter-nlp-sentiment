@@ -1,7 +1,7 @@
 import re
 import emoji
 import torch
-from torch.utils.data import Dataset,
+from torch.utils.data import Dataset
 class BERTweetNormalizer:
     """Optimized normalizer using compiled regex"""
 

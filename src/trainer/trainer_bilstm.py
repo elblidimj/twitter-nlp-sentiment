@@ -1,12 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset, Subset
-from sklearn.model_selection import KFold
-import pandas as pd
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
-import os
-import itertools
+from sklearn.metrics import accuracy_score, f1_score
+
 from src.model.bilstm import BiLSTM
 from helpers import create_csv_submission
 
@@ -25,6 +23,9 @@ def train_lstm(X, y, model,device, embeddings,lr,epochs=3):
         TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), 
         batch_size=512, shuffle=True
     )
+    best_f1 = 0
+    patience = 2
+    bad_epochs = 0
 
     for epoch in range(epochs):
         final_model.train()
@@ -43,6 +44,7 @@ def train_lstm(X, y, model,device, embeddings,lr,epochs=3):
 
 def predict_lstm(model, device, test_ids,X_test,embeddings):
     vocab_size = embeddings.shape[0]
+    
 
     X_test = np.clip(X_test, 0, vocab_size - 1)
     
@@ -55,98 +57,95 @@ def predict_lstm(model, device, test_ids,X_test,embeddings):
     create_csv_submission(test_ids, y_test_pred, "submission_bilstm_final.csv")
     print("✅ Process Complete. Submission saved as 'submission_bilstm_final.csv'")
 
-def grid_lstm(X,y_pt,embeddings, device):
-    SAVE_PATH = "../../data"
+def grid_lstm(X_train, y_train, X_val, y_val, embeddings, device):
+    y_train_pt = np.where(y_train == 1, 1, 0)
+    y_val_pt   = np.where(y_val == 1, 1, 0)
+
     param_grid = {
-        'learning_rate': [0.001, 0.0005],
-        'hidden_units': [64, 128],
-        'dropout': [0.3, 0.5]
+        "learning_rate": [0.001, 0.0005],
+        "hidden_units": [64, 128],
+        "dropout": [0.3, 0.5],
     }
-    
-    keys, values = zip(*param_grid.items())
-    combinations = [dict(zip(keys, v)) for v in itertools.product(*values)]
-    
-    best_acc = 0
+
+    best_f1 = 0.0
     best_config = None
-    performance_log = []
+    logs = []
 
-    print(f"--- Starting Grid Search & Detailed Logging over {len(combinations)} combinations ---")
+    for lr in param_grid["learning_rate"]:
+        for hidden in param_grid["hidden_units"]:
+            for dropout in param_grid["dropout"]:
 
-    for config in combinations:
-        config_name = f"LR_{config['learning_rate']}_H_{config['hidden_units']}_D_{config['dropout']}"
-        print(f"\nEvaluating Config: {config_name}")
-        
-        kfold = KFold(n_splits=3, shuffle=True, random_state=42)
+                print(f"\nEvaluating LR={lr}, H={hidden}, D={dropout}")
 
-        for fold, (train_ids, val_ids) in enumerate(kfold.split(X)):
-            # Prepare DataLoaders
-            train_loader = DataLoader(
-                Subset(TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), train_ids), 
-                batch_size=1024, shuffle=True
-            )
-            val_loader = DataLoader(
-                Subset(TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), val_ids), 
-                batch_size=1024
-            )
+                model = BiLSTM(
+                    embeddings,
+                    hidden_size=hidden,
+                    dropout_rate=dropout
+                ).to(device)
 
-            model = BiLSTM(
-                embeddings, 
-                hidden_size=config['hidden_units'], 
-                dropout_rate=config['dropout']
-            ).to(device)
-            
-            optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
-            criterion = nn.BCELoss()
+                optimizer = optim.Adam(model.parameters(), lr=lr)
+                criterion = nn.BCELoss()
 
-            for epoch in range(2):
-                model.train()
-                total_train_loss = 0
-                for bx, by in train_loader:
-                    bx, by = bx.to(device), by.to(device).view(-1, 1)
-                    optimizer.zero_grad()
-                    outputs = model(bx)
-                    loss = criterion(outputs, by)
-                    loss.backward()
-                    optimizer.step()
-                    total_train_loss += loss.item()
+                train_loader = DataLoader(
+                    TensorDataset(
+                        torch.from_numpy(X_train).long(),
+                        torch.from_numpy(y_train_pt).float()
+                    ),
+                    batch_size=512,
+                    shuffle=True
+                )
+
+                val_loader = DataLoader(
+                    TensorDataset(
+                        torch.from_numpy(X_val).long(),
+                        torch.from_numpy(y_val_pt).float()
+                    ),
+                    batch_size=512
+                )
+
+                for epoch in range(3):
+                    model.train()
+                    for bx, by in train_loader:
+                        bx = bx.to(device)
+                        by = by.to(device).view(-1, 1)
+
+                        optimizer.zero_grad()
+                        loss = criterion(model(bx), by)
+                        loss.backward()
+                        optimizer.step()
 
                 model.eval()
-                tp, tn, fp, fn = 0, 0, 0, 0
-                val_loss = 0
+                val_preds = []
+                val_targets = []
+
                 with torch.no_grad():
-                    for vx, vy in val_loader:
-                        vx, vy = vx.to(device), vy.to(device).view(-1, 1)
-                        v_out = model(vx)
-                        val_loss += criterion(v_out, vy).item()
-                        
-                        v_pred = (v_out > 0.5).float()
-                        tp += ((v_pred == 1) & (vy == 1)).sum().item()
-                        tn += ((v_pred == 0) & (vy == 0)).sum().item()
-                        fp += ((v_pred == 1) & (vy == 0)).sum().item()
-                        fn += ((v_pred == 0) & (vy == 1)).sum().item()
-                
-                performance_log.append({
-                    'Config_Name': config_name,
-                    'Fold': fold + 1,
-                    'Epoch': epoch + 1,
-                    'Learning_Rate': config['learning_rate'],
-                    'Hidden_Units': config['hidden_units'],
-                    'Dropout': config['dropout'],
-                    'Train_Loss': total_train_loss / len(train_loader),
-                    'Val_Loss': val_loss / len(val_loader),
-                    'TP': tp, 'TN': tn, 'FP': fp, 'FN': fn,
-                    'Accuracy': (tp + tn) / (tp + tn + fp + fn)
+                    for bx, by in val_loader:
+                        bx = bx.to(device)
+                        outputs = model(bx).cpu().numpy()
+                        preds = (outputs > 0.5).astype(int).flatten()
+
+                        val_preds.extend(preds)
+                        val_targets.extend(by.numpy())
+
+                val_acc = accuracy_score(val_targets, val_preds)
+                val_f1  = f1_score(val_targets, val_preds)
+
+                logs.append({
+                    "lr": lr,
+                    "hidden": hidden,
+                    "dropout": dropout,
+                    "val_acc": val_acc,
+                    "val_f1": val_f1
                 })
 
-        current_mean = np.mean([entry['Accuracy'] for entry in performance_log if entry['Config_Name'] == config_name])
-        print(f"Config Mean Val Acc: {current_mean:.4f}")
-        if current_mean > best_acc:
-            best_acc = current_mean
-            best_config = config
+                print(f"Val Acc: {val_acc:.4f} | Val F1: {val_f1:.4f}")
 
-    log_df = pd.DataFrame(performance_log)
-    if not os.path.exists(SAVE_PATH): os.makedirs(SAVE_PATH)
-    log_df.to_csv(os.path.join(SAVE_PATH, "bilstm_experiment_results.csv"), index=False)
-    print(f"\n🏆 Best Config: {best_config} | Master log saved to {SAVE_PATH}/bilstm_experiment_results.csv")
-    return best_config['learning_rate'], best_config['hidden_units'], best_config['dropout_rate']
+                if val_f1 > best_f1:
+                    best_f1 = val_f1
+                    best_config = (lr, hidden, dropout)
+
+    print(f"\n🏆 Best config: LR={best_config[0]}, "
+          f"H={best_config[1]}, D={best_config[2]} | F1={best_f1:.4f}")
+
+    return best_config
 

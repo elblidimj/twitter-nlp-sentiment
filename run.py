@@ -9,6 +9,9 @@ from src.transforms.text_embeddings import tweets_to_matrix
 import argparse
 import pandas as pd
 import torch
+import random
+import numpy as np
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Tweet sentiment classification")
@@ -30,6 +33,11 @@ def parse_args():
 
     return parser.parse_args()
 
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 if __name__ == '__main__':
     args = parse_args()
@@ -71,11 +79,18 @@ if __name__ == '__main__':
         hidden_size = 128
         dropout_rate = 0.5
         learning_rate = 0.005
-
-        if args.cv is True:
-            learning_rate, hidden_size, dropout_rate = grid_lstm(X_train, y_train, device)
         X_train =tweets_to_matrix(X_train, vocab, embeddings, None)
         X_val = tweets_to_matrix(X_val, vocab, embeddings, None)
+
+        if args.cv is True:
+            learning_rate, hidden_size, dropout_rate = grid_lstm(
+    X_train, y_train,
+    X_val, y_val,
+    embeddings,
+    device
+)
+
+
         model = build_lstm(embeddings, hidden_size, dropout_rate)
 
         train_lstm(X_train, y_train, model, device, embeddings, learning_rate)
