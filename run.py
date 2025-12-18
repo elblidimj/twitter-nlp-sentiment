@@ -132,8 +132,8 @@ if __name__ == '__main__':
                 bx = bx.to(device)
                 by = by.to(device)
 
-                probs = model(bx).squeeze(1)   # shape: (B,)
-                preds = (probs > 0.5).long()   # {0,1}
+                probs = model(bx).squeeze(1)  
+                preds = (probs > 0.5).long()  
 
                 val_preds.append(preds.cpu())
                 val_targets.append(by.cpu())
