@@ -8,7 +8,7 @@ from src.model.bilstm import build_lstm
 from src.transforms.text_embeddings import tweets_to_matrix
 from sklearn.metrics import accuracy_score, f1_score
 from torch.utils.data import DataLoader, TensorDataset
-
+from helpers import create_csv_submission
 import argparse
 import pandas as pd
 import torch
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     args = parse_args()
     set_seed(42)
     print("Loading data...")
-    train_texts, train_labels = load_training_tweets(use_full=True)
+    train_texts, train_labels = load_training_tweets(use_full=False)
     test_ids, test_texts = load_test_tweets()
 
     X_train, X_val, y_train, y_val = train_test_split(
@@ -150,7 +150,6 @@ if __name__ == '__main__':
         from src.model.cnn import build_cnn
         from src.trainer.trainer_cnn import train_cnn, predict_cnn, grid_cnn
     
-        # Default params
         kernel_size = 3
         filters = 128
         learning_rate = 0.0005
@@ -189,27 +188,19 @@ if __name__ == '__main__':
                 bx = bx.to(device)
                 by = by.to(device)
 
-                # CNN output shape check: squeeze if necessary to match (B,)
                 probs = model(bx).squeeze()   
-                preds = (probs > 0.5).long()   # Thresholding for binary {0,1}
+                preds = (probs > 0.5).long() 
 
                 val_preds.append(preds.cpu())
                 val_targets.append(by.cpu())
 
-        # Concatenate and convert to numpy for sklearn metrics
         val_preds = torch.cat(val_preds).numpy()
         val_targets = torch.cat(val_targets).numpy()
 
-        # Metrics calculation
         val_acc = accuracy_score(val_targets, val_preds)
         val_f1  = f1_score(val_targets, val_preds)
 
         print(f"[CNN] Final Val Accuracy: {val_acc:.4f} | Val F1: {val_f1:.4f}")
     else:
         raise ValueError(f"Unknown model {args.model}")
-
-
-    pd.DataFrame({
-        "Id": test_ids,
-        "Prediction": predictions
-    }).to_csv("submission.csv", index=False)
+    create_csv_submission(test_ids, predictions, "submission.csv")
