@@ -16,20 +16,41 @@ from src.model.bilstm import BiLSTM
 
 SAVE_PATH = "twitter-datasets"
 
-def train_and_predict_bilstm(data_dir="twitter-datasets"):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
-    vocab, embeddings = load_vocab_and_embeddings("vocab.pkl", "embeddings.npy")
-    tweets, y = load_training_tweets(data_dir=data_dir, use_full=True)
-    X = tweets_to_matrix(tweets, vocab, embeddings, None)
+def train_lstm(X, y, device, embeddings,hidden_units,dropout_rate,lr,epochs=3):
     
     vocab_size = embeddings.shape[0]
-    X = np.clip(X, 0, vocab_size - 1)
-    print(f"Indices clipped to range [0, {vocab_size - 1}]")
-    
+    X = np.clip(X, 0, vocab_size - 1)    
     y_pt = np.where(y == 1, 1, 0)
 
+    final_model = BiLSTM(
+        embeddings, 
+        hidden_size=hidden_units, 
+        dropout_rate=dropout_rate
+    ).to(device)
+    
+    optimizer = optim.Adam(final_model.parameters(), lr=lr)
+    full_loader = DataLoader(
+        TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), 
+        batch_size=512, shuffle=True
+    )
+
+    for epoch in range(epochs):
+        final_model.train()
+        epoch_loss = 0
+        for bx, by in full_loader:
+            bx, by = bx.to(device), by.to(device).view(-1, 1)
+            optimizer.zero_grad()
+            outputs = final_model(bx)
+            loss = nn.BCELoss()(outputs, by)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
+        print(f"Final Epoch {epoch+1}/5 | Avg Loss: {epoch_loss/len(full_loader):.4f}")
+
+    return final_model
+
+def grid_lstm(X,y_pt,embeddings, device):
+    SAVE_PATH = "../../data"
     param_grid = {
         'learning_rate': [0.001, 0.0005],
         'hidden_units': [64, 128],
@@ -62,7 +83,6 @@ def train_and_predict_bilstm(data_dir="twitter-datasets"):
                 batch_size=1024
             )
 
-            # Initialize model with specific hyperparameters
             model = BiLSTM(
                 embeddings, 
                 hidden_size=config['hidden_units'], 
@@ -72,7 +92,6 @@ def train_and_predict_bilstm(data_dir="twitter-datasets"):
             optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
             criterion = nn.BCELoss()
 
-            # Train for comparison epochs
             for epoch in range(2):
                 model.train()
                 total_train_loss = 0
@@ -85,7 +104,6 @@ def train_and_predict_bilstm(data_dir="twitter-datasets"):
                     optimizer.step()
                     total_train_loss += loss.item()
 
-                # --- Validation & Raw Metric Extraction ---
                 model.eval()
                 tp, tn, fp, fn = 0, 0, 0, 0
                 val_loss = 0
@@ -101,7 +119,6 @@ def train_and_predict_bilstm(data_dir="twitter-datasets"):
                         fp += ((v_pred == 1) & (vy == 0)).sum().item()
                         fn += ((v_pred == 0) & (vy == 1)).sum().item()
                 
-                # Log detailed stats for CSV
                 performance_log.append({
                     'Config_Name': config_name,
                     'Fold': fold + 1,
@@ -115,62 +132,14 @@ def train_and_predict_bilstm(data_dir="twitter-datasets"):
                     'Accuracy': (tp + tn) / (tp + tn + fp + fn)
                 })
 
-        # Calculate mean for best config tracking
         current_mean = np.mean([entry['Accuracy'] for entry in performance_log if entry['Config_Name'] == config_name])
         print(f"Config Mean Val Acc: {current_mean:.4f}")
         if current_mean > best_acc:
             best_acc = current_mean
             best_config = config
 
-    # 3. Save the Master CSV Log
     log_df = pd.DataFrame(performance_log)
     if not os.path.exists(SAVE_PATH): os.makedirs(SAVE_PATH)
     log_df.to_csv(os.path.join(SAVE_PATH, "bilstm_experiment_results.csv"), index=False)
     print(f"\n🏆 Best Config: {best_config} | Master log saved to {SAVE_PATH}/bilstm_experiment_results.csv")
 
-    # 4. Final Training on FULL Dataset with Best Params
-    print("\n--- Final Training on Full Dataset ---")
-    final_model = BiLSTM(
-        embeddings, 
-        hidden_size=best_config['hidden_units'], 
-        dropout_rate=best_config['dropout']
-    ).to(device)
-    
-    optimizer = optim.Adam(final_model.parameters(), lr=best_config['learning_rate'])
-    full_loader = DataLoader(
-        TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), 
-        batch_size=512, shuffle=True
-    )
-
-    for epoch in range(5):
-        final_model.train()
-        epoch_loss = 0
-        for bx, by in full_loader:
-            bx, by = bx.to(device), by.to(device).view(-1, 1)
-            optimizer.zero_grad()
-            outputs = final_model(bx)
-            loss = nn.BCELoss()(outputs, by)
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
-        print(f"Final Epoch {epoch+1}/5 | Avg Loss: {epoch_loss/len(full_loader):.4f}")
-
-    # 5. Generate Submission
-    print("\nGenerating final submission file...")
-    test_ids, test_tweets = load_test_tweets(data_dir=data_dir)
-    X_test = tweets_to_matrix(test_tweets, vocab, embeddings, None)
-    
-    # Apply index clipping to test data as well
-    X_test = np.clip(X_test, 0, vocab_size - 1)
-    
-    final_model.eval()
-    with torch.no_grad():
-        test_inputs = torch.from_numpy(X_test).long().to(device)
-        test_probs = final_model(test_inputs).cpu().numpy()
-        y_test_pred = np.where(test_probs > 0.5, 1, -1).astype(int)
-
-    create_csv_submission(test_ids, y_test_pred, "submission_bilstm_final.csv")
-    print("✅ Process Complete. Submission saved as 'submission_bilstm_final.csv'")
-
-if __name__ == "__main__":
-    train_and_predict_bilstm()
