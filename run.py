@@ -58,7 +58,7 @@ if __name__ == '__main__':
     X_train, X_val, y_train, y_val = train_test_split(
         train_texts,
         train_labels,
-        test_size=0.2,
+        test_size=0.1,
         random_state=42,
         stratify=train_labels
     )
@@ -132,8 +132,8 @@ if __name__ == '__main__':
                 bx = bx.to(device)
                 by = by.to(device)
 
-                probs = model(bx).squeeze(1)   # shape: (B,)
-                preds = (probs > 0.5).long()   # {0,1}
+                probs = model(bx).squeeze(1)  
+                preds = (probs > 0.5).long()  
 
                 val_preds.append(preds.cpu())
                 val_targets.append(by.cpu())

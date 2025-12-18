@@ -143,7 +143,7 @@ def grid_lstm(X_train, y_train, X_val, y_val, embeddings, device):
                     best_f1 = val_f1
                     best_config = (lr, hidden, dropout)
 
-    print(f"\n🏆 Best config: LR={best_config[0]}, "
+    print(f"\nBest config: LR={best_config[0]}, "
           f"H={best_config[1]}, D={best_config[2]} | F1={best_f1:.4f}")
 
     return best_config
