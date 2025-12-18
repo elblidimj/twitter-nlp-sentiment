@@ -29,8 +29,16 @@ Uses the co-occurrence matrix to train GloVe embeddings and outputs the final em
 **Note:**  
 This pipeline is used only for word-based models (CNN, BiLSTM, and linear baselines). Transformer-based models such as **BERTweet** rely on their own tokenizer and do not use this preprocessing.
 
+## How to run the pipeline
 
+### Best accuracy : BERTweet 
+Run `run.py` to get the best accuracy performed and submitted to aicrowd. It finetunes a BERTweet model by aligning the preprocessing existing in the dataset to the one that was used for training BERTweet.
 
+## BiLSTM
+Run `run.py --model bilstm` to run the bilstm model on the tuned hyperparameters
+
+## CNN
+Run `run.py --model cnn` to run the cnn model on the tuned hyperparameters
 
 
 ## Oracle Evaluation Pipeline
