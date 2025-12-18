@@ -1,3 +1,61 @@
+## Project Structure
+
+The project is organized into several folders and Python files, each with a specific responsibility:
+
+project/
+├── preprocessing/
+│   ├── clean_and_dedup.py        # Remove strictly identical tweets (deduplicated *_clean.txt)
+│   ├── preprocess.py             # Twitter-specific text normalization and cleaning
+│   ├── build_vocab.sh            # Build token frequency list from cleaned data
+│   ├── cut_vocab.sh              # Remove rare words (minimum frequency = 3)
+│   ├── pickle_vocab.py           # Serialize vocabulary mapping (vocab.pkl)
+│   ├── cooc.py                   # Build word co-occurrence matrix (cooc.pkl)
+│   ├── glove_pretrained.py       # Load pretrained Twitter GloVe embeddings
+│   └── glove_trained.py          # Train GloVe embeddings from scratch on the dataset
+│
+├── src/
+│   ├── datasets/
+│   │   ├── twitter.py            # Dataset loading utilities (full / non-full splits)
+│   │   └── loader.py             # Shared dataset loading helpers
+│   │
+│   ├── model/
+│   │   ├── bertweet.py           # BERTweet-based model
+│   │   ├── cnn.py                # CNN baseline model
+│   │   ├── bilstm.py             # BiLSTM model
+│   │   └── logreg.py             # Logistic regression baseline
+│   │
+│   ├── trainer/
+│   │   ├── bertweet_train.py     # Training loop for BERTweet
+│   │   ├── trainer_cnn.py        # Training loop for CNN
+│   │   ├── trainer_bilstm.py     # Training loop for BiLSTM
+│   │   ├── validation.py         # Evaluation utilities (accuracy, F1-score)
+│   │   └── tuning_base.py        # Hyperparameter tuning utilities
+│   │
+│   ├── transforms/
+│   │   └── text_embeddings.py    # Embedding preparation for word-based models
+│   │
+│   └── utils/
+│       ├── io_utils.py           # File I/O helpers
+│       └── text_analysis.py      # Text analysis utilities
+│
+├── twitter_datasets/             # Dataset directory (must be added manually)
+│   ├── train_pos.txt
+│   ├── train_neg.txt
+│   ├── train_pos_full.txt
+│   ├── train_neg_full.txt
+│   └── test_data.txt
+│
+├── ethics_oracle_eval.py          # Ethics: oracle sentiment vs emoji polarity (binary mapping)
+├── ethics_oracle_neutral.py       # Ethics: quantify oracle neutral predictions
+├── helpers.py                     # Shared helper functions
+├── run.py                         # Main entry point to run training and evaluation
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
+
+
+
+
+
 ## Preprocessing Pipeline
 
 The preprocessing pipeline is composed of several scripts, each responsible for a specific transformation of the raw Twitter data.  
