@@ -22,18 +22,13 @@ CONTRACTIONS = {
 NEGATIONS = {"not", "no", "never", "nor", "nothing", "nowhere", "cannot", "none", "neither"}
 
 
-def split_hashtag(match):
-    hashtag = match.group(0)[1:] # Remove the #
-    if hashtag.isupper(): return hashtag 
-    # CamelCase split: #GoodDay -> Good Day
-    return " ".join(re.findall(r'[a-zA-Z][^A-Z]*', hashtag))
 def handle_negation(tokens):
     """Appends _NEG to the word immediately following a negation term."""
     new_toks = []
     neg_active = False
     for t in tokens:
         if neg_active:
-            if not t.startswith("<"): # Don't tag special tokens like <NUM>
+            if not t.startswith("<"): 
                 t = t + "_NEG"
             neg_active = False
         new_toks.append(t)
@@ -65,8 +60,6 @@ def augment_line(line):
 
     text = re.sub(r"(?::|;|=)(?:-)?(?:\)|\}|\]|>|D)", " <SMILE> ", text)
     text = re.sub(r"(?::|;|=)(?:-)?(?:\(|\{|\[|<)", " <SAD> ", text)
-
-    #text = re.sub(r"#\w+", split_hashtag, text)
 
     text = text.replace('...', ' <DOTS> ')
     text = text.replace('!', ' ! ')
