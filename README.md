@@ -55,7 +55,8 @@ project/
 
 
 ```
-
+## Requirements
+You can run ``pip install -r requirements.txt``
 
 ## Preprocessing Pipeline
 
@@ -106,7 +107,8 @@ Before running the models, ensure your project directory is set up as follows:
 2. **Preprocessing Outputs**: All preprocessing steps (tokenization, co-occurrence building, and GloVe training) must be completed first to generate the following files in your root directory:
     * `vocab.pkl`: The processed vocabulary mapping.
     * `embeddings.npy`: The trained word vectors (GloVe) used as the embedding weights for the BiLSTM and CNN.
-  
+
+You must also manually download GloVe embeddings from http://nlp.stanford.edu/data/glove.twitter.27B.zip and put them 50d version at the root of the project
 
 ## How to run the pipeline
 
