@@ -8,7 +8,6 @@ import numpy as np
 import os
 import itertools
 
-# Custom internal imports
 from helpers import create_csv_submission
 from src.utils.io_utils import load_vocab_and_embeddings
 from src.datasets.twitter import load_training_tweets, load_test_tweets
@@ -18,26 +17,19 @@ from src.model.bilstm import BiLSTM
 SAVE_PATH = "twitter-datasets"
 
 def train_and_predict_bilstm(data_dir="twitter-datasets"):
-    # --- GPU SETUP ---
-    # Checks if a compatible NVIDIA GPU is available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # 1. Load Data
     vocab, embeddings = load_vocab_and_embeddings("vocab.pkl", "embeddings.npy")
     tweets, y = load_training_tweets(data_dir=data_dir, use_full=True)
     X = tweets_to_matrix(tweets, vocab, embeddings, None)
     
-    # --- CUDA FIX: Index Clipping ---
-    # Ensures all word indices are within the embedding matrix range to prevent GPU crashes
     vocab_size = embeddings.shape[0]
     X = np.clip(X, 0, vocab_size - 1)
     print(f"Indices clipped to range [0, {vocab_size - 1}]")
     
-    # Convert labels from -1/1 to 0/1 for Binary Cross Entropy
     y_pt = np.where(y == 1, 1, 0)
 
-    # 2. Hyperparameter Grid Search Setup
     param_grid = {
         'learning_rate': [0.001, 0.0005],
         'hidden_units': [64, 128],

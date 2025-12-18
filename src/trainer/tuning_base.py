@@ -38,7 +38,6 @@ def tune_logreg(X, y, cv_folds=5, plot=True):
     print("\nBest parameters:", best_params)
     print("Best CV accuracy:", grid.best_score_)
 
-    # Extract CV results
     results = grid.cv_results_
 
     accuracies = np.array(results["mean_test_score"])
