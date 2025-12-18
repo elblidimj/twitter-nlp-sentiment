@@ -6,18 +6,15 @@ class TwitterCNN(nn.Module):
         super(TwitterCNN, self).__init__()
         vocab_size, embedding_dim = embeddings.shape
         
-        # 1. Embedding Layer
         self.embedding = nn.Embedding.from_pretrained(
             torch.from_numpy(embeddings).float(), 
             freeze=False 
         )
         
-        # 2. Conv Blocks
         self.conv1 = nn.Conv1d(in_channels=embedding_dim, out_channels=filters, kernel_size=kernel_size, padding='same')
         self.bn1 = nn.BatchNorm1d(filters)
         self.conv2 = nn.Conv1d(in_channels=filters, out_channels=128, kernel_size=5, padding='same')
         
-        # 3. Pooling and Classification
         self.pool = nn.AdaptiveMaxPool1d(1) 
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(dropout_rate)
@@ -28,7 +25,7 @@ class TwitterCNN(nn.Module):
 
     def forward(self, x):
         x = self.embedding(x)
-        x = x.permute(0, 2, 1) # (Batch, Dim, Length)
+        x = x.permute(0, 2, 1)
         
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.relu(self.conv2(x))

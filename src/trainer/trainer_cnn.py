@@ -58,7 +58,6 @@ def grid_cnn(X, y, embeddings, device):
     X = np.clip(X, 0, vocab_size - 1)
     y_pt = np.where(y == 1, 1, 0)
 
-    # 1. Define Hyperparameter Grid
     param_grid = {
         'learning_rate': [0.001, 0.0005],
         'kernel_size': [3, 5],
