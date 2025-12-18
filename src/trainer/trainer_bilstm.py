@@ -21,7 +21,7 @@ def train_lstm(X, y, model,device, embeddings,lr,epochs=3):
     optimizer = optim.Adam(final_model.parameters(), lr=lr)
     full_loader = DataLoader(
         TensorDataset(torch.from_numpy(X).long(), torch.from_numpy(y_pt).float()), 
-        batch_size=512, shuffle=True
+        batch_size=64, shuffle=True
     )
     best_f1 = 0
     patience = 2
@@ -38,7 +38,7 @@ def train_lstm(X, y, model,device, embeddings,lr,epochs=3):
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
-        print(f"Final Epoch {epoch+1}/5 | Avg Loss: {epoch_loss/len(full_loader):.4f}")
+        print(f"Final Epoch {epoch+1}/{epochs} | Avg Loss: {epoch_loss/len(full_loader):.4f}")
 
     return final_model
 
@@ -55,7 +55,7 @@ def predict_lstm(model, device, test_ids,X_test,embeddings):
         y_test_pred = np.where(test_probs > 0.5, 1, -1).astype(int)
 
     create_csv_submission(test_ids, y_test_pred, "submission_bilstm_final.csv")
-    print("✅ Process Complete. Submission saved as 'submission_bilstm_final.csv'")
+    print("Process Complete. Submission saved as 'submission_bilstm_final.csv'")
 
 def grid_lstm(X_train, y_train, X_val, y_val, embeddings, device):
     y_train_pt = np.where(y_train == 1, 1, 0)

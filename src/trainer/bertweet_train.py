@@ -34,7 +34,7 @@ def fast_evaluate(data_loader,device,model):
     f1 = f1_score(all_labels, all_preds, average='binary')
     return acc, f1
 
-def train_bert(model, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,device=torch.device('cpu'),lr=0.01):
+def train_bert(model, X_train, y_train, X_val, y_val,batch_size = 128,epochs=3,device=torch.device('cpu'),lr=3e-5):
     tokenizer = AutoTokenizer.from_pretrained(
             'vinai/bertweet-base',
             normalization=True,
