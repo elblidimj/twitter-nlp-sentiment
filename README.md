@@ -21,8 +21,14 @@ Builds and serializes the vocabulary dictionary (`vocab.pkl`) mapping words to i
 ### **cooc.py**
 Constructs a word co-occurrence matrix (`cooc.pkl`) from the cleaned positive and negative datasets.
 
-### **glove.py**
-Uses the co-occurrence matrix to train GloVe embeddings and outputs the final embedding matrix (`embeddings.npy`).
+### **glove_pretrained.py**
+Loads pretrained GloVe embeddings trained on large-scale Twitter data and aligns them with the project vocabulary.
+
+or 
+
+### **glove_trained.py**
+Trains GloVe embeddings from scratch using the task-specific co-occurrence matrix (`cooc.pkl`), generating embeddings learned directly from the project dataset.
+
 
 ---
 
