@@ -8,20 +8,17 @@ import numpy as np
 import os
 import itertools
 from src.model.bilstm import BiLSTM
+from helpers import create_csv_submission
 
 SAVE_PATH = "twitter-datasets"
 
-def train_lstm(X, y, device, embeddings,hidden_units,dropout_rate,lr,epochs=3):
+def train_lstm(X, y, model,device, embeddings,lr,epochs=3):
     
     vocab_size = embeddings.shape[0]
     X = np.clip(X, 0, vocab_size - 1)    
     y_pt = np.where(y == 1, 1, 0)
 
-    final_model = BiLSTM(
-        embeddings, 
-        hidden_size=hidden_units, 
-        dropout_rate=dropout_rate
-    ).to(device)
+    final_model = model
     
     optimizer = optim.Adam(final_model.parameters(), lr=lr)
     full_loader = DataLoader(
@@ -43,6 +40,20 @@ def train_lstm(X, y, device, embeddings,hidden_units,dropout_rate,lr,epochs=3):
         print(f"Final Epoch {epoch+1}/5 | Avg Loss: {epoch_loss/len(full_loader):.4f}")
 
     return final_model
+
+def predict_lstm(model, device, test_ids,X_test,embeddings):
+    vocab_size = embeddings.shape[0]
+
+    X_test = np.clip(X_test, 0, vocab_size - 1)
+    
+    model.eval()
+    with torch.no_grad():
+        test_inputs = torch.from_numpy(X_test).long().to(device)
+        test_probs = model(test_inputs).cpu().numpy()
+        y_test_pred = np.where(test_probs > 0.5, 1, -1).astype(int)
+
+    create_csv_submission(test_ids, y_test_pred, "submission_bilstm_final.csv")
+    print("✅ Process Complete. Submission saved as 'submission_bilstm_final.csv'")
 
 def grid_lstm(X,y_pt,embeddings, device):
     SAVE_PATH = "../../data"
@@ -137,4 +148,5 @@ def grid_lstm(X,y_pt,embeddings, device):
     if not os.path.exists(SAVE_PATH): os.makedirs(SAVE_PATH)
     log_df.to_csv(os.path.join(SAVE_PATH, "bilstm_experiment_results.csv"), index=False)
     print(f"\n🏆 Best Config: {best_config} | Master log saved to {SAVE_PATH}/bilstm_experiment_results.csv")
+    return best_config['learning_rate'], best_config['hidden_units'], best_config['dropout_rate']
 

@@ -4,7 +4,8 @@ import torch.nn as nn
 class BiLSTM(nn.Module):
     def __init__(self, embeddings, hidden_size=128, dropout_rate=0.5):
         super(BiLSTM, self).__init__()
-        embedding_dim = embeddings.shape
+        embedding_dim = embeddings.shape[1]
+        print(embedding_dim)
         
         self.embedding = nn.Embedding.from_pretrained(
             torch.from_numpy(embeddings).float(), 
@@ -34,3 +35,6 @@ class BiLSTM(nn.Module):
         
         x = torch.relu(self.fc1(self.dropout(final_state)))
         return self.sigmoid(self.fc2(x))
+    
+def build_lstm(embeddings, hidden_size=128, dropout_rate=0.5):
+    return BiLSTM(embeddings, hidden_size, dropout_rate)

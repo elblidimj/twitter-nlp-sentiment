@@ -82,7 +82,7 @@ def train_bert(model, X_train, y_train, X_val, y_val,batch_size = 32,epochs=3,de
         print(f"Epoch {epoch + 1}/{epochs}")
         print(f"{'='*70}")
 
-        model.train_bert()
+        model.train()
         train_loss = 0
         train_correct = 0
         train_total = 0

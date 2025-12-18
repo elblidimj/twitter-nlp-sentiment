@@ -2,6 +2,10 @@ from sklearn.model_selection import train_test_split
 from src.model.bertweet import build_model
 from src.trainer.bertweet_train import train_bert, predict_bert
 from src.datasets.twitter import load_training_tweets, load_test_tweets
+from src.trainer.trainer_bilstm import predict_lstm, train_lstm, grid_lstm
+from src.utils.io_utils import load_vocab_and_embeddings
+from src.model.bilstm import build_lstm
+from src.transforms.text_embeddings import tweets_to_matrix
 import argparse
 import pandas as pd
 import torch
@@ -43,7 +47,7 @@ if __name__ == '__main__':
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    vocab, embeddings = load_vocab_and_embeddings("vocab.pkl", "embeddings.npy")
 
     if args.model == "bertweet":
         from src.model.bertweet import build_model
@@ -51,10 +55,9 @@ if __name__ == '__main__':
 
         model = build_model(device)
 
-        train_bert(
+        train_bert(model,
             X_train, y_train,
             X_val, y_val,
-            model=model,
             device=device
         )
 
@@ -65,13 +68,20 @@ if __name__ == '__main__':
         )
 
     elif args.model == "bilstm":
-        from src.trainer.trainer_bilstm import train_and_predict_bilstm
+        hidden_size = 128
+        dropout_rate = 0.5
+        learning_rate = 0.005
 
-        if args.cv is False:
-            print("⚠️ BiLSTM currently ALWAYS uses CV (hardcoded). Ignoring --cv flag.")
+        if args.cv is True:
+            learning_rate, hidden_size, dropout_rate = grid_lstm(X_train, y_train, device)
+        X_train =tweets_to_matrix(X_train, vocab, embeddings, None)
+        X_val = tweets_to_matrix(X_val, vocab, embeddings, None)
+        model = build_lstm(embeddings, hidden_size, dropout_rate)
 
-        train_and_predict_bilstm()
-        exit(0)
+        train_lstm(X_train, y_train, model, device, embeddings, learning_rate)
+
+        X_test = tweets_to_matrix(test_texts, vocab, embeddings, None)
+        predictions = predict_lstm(model, device, X_test)
 
     elif args.model == "cnn":
         from src.trainer.trainer_cnn import train_and_predict
