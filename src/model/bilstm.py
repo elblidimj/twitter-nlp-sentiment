@@ -5,7 +5,6 @@ class BiLSTM(nn.Module):
     def __init__(self, embeddings, hidden_size=128, dropout_rate=0.5):
         super(BiLSTM, self).__init__()
         embedding_dim = embeddings.shape[1]
-        print(embedding_dim)
         
         self.embedding = nn.Embedding.from_pretrained(
             torch.from_numpy(embeddings).float(), 
