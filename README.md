@@ -94,6 +94,20 @@ Trains GloVe embeddings from scratch using the task-specific co-occurrence matri
 **Note:**  
 This pipeline is used only for word-based models (CNN, BiLSTM, and linear baselines). Transformer-based models such as **BERTweet** rely on their own tokenizer and do not use this preprocessing.
 
+## Prerequisites
+
+Before running the models, ensure your project directory is set up as follows:
+
+1. **Data Folder**: You must have a folder named `twitter-datasets/` in the root directory containing the raw text files:
+    * `train_pos_full.txt` & `train_neg_full.txt` (The full 2.5M dataset)
+    * `train_pos.txt` & `train_neg.txt` (The smaller 200k dataset)
+    * `test_data.txt` (The unlabeled test set)
+
+2. **Preprocessing Outputs**: All preprocessing steps (tokenization, co-occurrence building, and GloVe training) must be completed first to generate the following files in your root directory:
+    * `vocab.pkl`: The processed vocabulary mapping.
+    * `embeddings.npy`: The trained word vectors (GloVe) used as the embedding weights for the BiLSTM and CNN.
+  
+
 ## How to run the pipeline
 
 ### Best accuracy : BERTweet 
@@ -105,6 +119,7 @@ Run `run.py --model bilstm` to run the bilstm model on the tuned hyperparameters
 ## CNN
 Run `run.py --model cnn` to run the cnn model on the tuned hyperparameters
 
+For CNN and BiLSTM an argument `--tuning` also exists, which when set to True allows to run a grid search with bilstm and cross validation with CNN.
 
 ## Oracle Evaluation Pipeline
 
