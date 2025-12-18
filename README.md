@@ -1,3 +1,63 @@
+## Project Structure
+
+The project is organized into several folders and Python files, each with a specific responsibility:
+
+```text
+project/
+├── preprocessing/
+│   ├── clean_and_dedup.py        # Remove strictly identical tweets (deduplicated *_clean.txt)
+│   ├── preprocess.py             # Twitter-specific text normalization and cleaning
+│   ├── build_vocab.sh            # Build token frequency list from cleaned data
+│   ├── cut_vocab.sh              # Remove rare words (minimum frequency = 3)
+│   ├── pickle_vocab.py           # Serialize vocabulary mapping (vocab.pkl)
+│   ├── cooc.py                   # Build word co-occurrence matrix (cooc.pkl)
+│   ├── glove_pretrained.py       # Load pretrained Twitter GloVe embeddings
+│   └── glove_trained.py          # Train GloVe embeddings from scratch on the dataset
+│
+├── src/
+│   ├── datasets/
+│   │   ├── twitter.py            # Dataset loading utilities (full / non-full splits)
+│   │   └── loader.py             # Shared dataset loading helpers
+│   │
+│   ├── model/
+│   │   ├── bertweet.py           # BERTweet-based model
+│   │   ├── cnn.py                # CNN baseline model
+│   │   ├── bilstm.py             # BiLSTM model
+│   │   └── logreg.py             # Logistic regression baseline
+│   │
+│   ├── trainer/
+│   │   ├── bertweet_train.py     # Training loop for BERTweet
+│   │   ├── trainer_cnn.py        # Training loop for CNN
+│   │   ├── trainer_bilstm.py     # Training loop for BiLSTM
+│   │   ├── validation.py         # Evaluation utilities (accuracy, F1-score)
+│   │   └── tuning_base.py        # Hyperparameter tuning utilities
+│   │
+│   ├── transforms/
+│   │   └── text_embeddings.py    # Embedding preparation for word-based models
+│   │
+│   └── utils/
+│       ├── io_utils.py           # File I/O helpers
+│       └── text_analysis.py      # Text analysis utilities
+│
+├── twitter_datasets/             # Dataset directory (must be added manually)
+│   ├── train_pos.txt
+│   ├── train_neg.txt
+│   ├── train_pos_full.txt
+│   ├── train_neg_full.txt
+│   └── test_data.txt
+│
+├── ethics_oracle_eval.py          # Ethics: oracle sentiment vs emoji polarity (binary mapping)
+├── ethics_oracle_neutral.py       # Ethics: quantify oracle neutral predictions
+├── helpers.py                     # Shared helper functions
+├── run.py                         # Main entry point to run training and evaluation
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
+
+
+```
+## Requirements
+You can run ``pip install -r requirements.txt``
+
 ## Preprocessing Pipeline
 
 The preprocessing pipeline is composed of several scripts, each responsible for a specific transformation of the raw Twitter data.  
@@ -35,6 +95,21 @@ Trains GloVe embeddings from scratch using the task-specific co-occurrence matri
 **Note:**  
 This pipeline is used only for word-based models (CNN, BiLSTM, and linear baselines). Transformer-based models such as **BERTweet** rely on their own tokenizer and do not use this preprocessing.
 
+## Prerequisites
+
+Before running the models, ensure your project directory is set up as follows:
+
+1. **Data Folder**: You must have a folder named `twitter-datasets/` in the root directory containing the raw text files:
+    * `train_pos_full.txt` & `train_neg_full.txt` (The full 2.5M dataset)
+    * `train_pos.txt` & `train_neg.txt` (The smaller 200k dataset)
+    * `test_data.txt` (The unlabeled test set)
+
+2. **Preprocessing Outputs**: All preprocessing steps (tokenization, co-occurrence building, and GloVe training) must be completed first to generate the following files in your root directory:
+    * `vocab.pkl`: The processed vocabulary mapping.
+    * `embeddings.npy`: The trained word vectors (GloVe) used as the embedding weights for the BiLSTM and CNN.
+
+You must also manually download GloVe embeddings from http://nlp.stanford.edu/data/glove.twitter.27B.zip and put them 50d version at the root of the project
+
 ## How to run the pipeline
 
 ### Best accuracy : BERTweet 
@@ -46,6 +121,7 @@ Run `run.py --model bilstm` to run the bilstm model on the tuned hyperparameters
 ## CNN
 Run `run.py --model cnn` to run the cnn model on the tuned hyperparameters
 
+For CNN and BiLSTM an argument `--tuning` also exists, which when set to True allows to run a grid search with bilstm and cross validation with CNN.
 
 ## Oracle Evaluation Pipeline
 
