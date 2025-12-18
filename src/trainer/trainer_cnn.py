@@ -65,7 +65,7 @@ def grid_cnn(X_train, y_train, X_val, y_val, embeddings, device):
                 train_loader = DataLoader(TensorDataset(torch.from_numpy(X_train).long(), torch.from_numpy(y_train_pt).float()), batch_size=512, shuffle=True)
                 val_loader = DataLoader(TensorDataset(torch.from_numpy(X_val).long(), torch.from_numpy(y_val_pt).float()), batch_size=512)
 
-                for _ in range(2): # Short training for grid search
+                for _ in range(2):
                     model.train()
                     for bx, by in train_loader:
                         bx, by = bx.to(device), by.to(device).view(-1, 1)
