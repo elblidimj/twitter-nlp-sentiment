@@ -7,11 +7,6 @@ import pandas as pd
 import numpy as np
 import os
 import itertools
-
-from helpers import create_csv_submission
-from src.utils.io_utils import load_vocab_and_embeddings
-from src.datasets.twitter import load_training_tweets, load_test_tweets
-from src.transforms.text_embeddings import tweets_to_matrix
 from src.model.bilstm import BiLSTM
 
 SAVE_PATH = "twitter-datasets"
