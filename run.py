@@ -58,7 +58,7 @@ if __name__ == '__main__':
     X_train, X_val, y_train, y_val = train_test_split(
         train_texts,
         train_labels,
-        test_size=0.2,
+        test_size=0.1,
         random_state=42,
         stratify=train_labels
     )
