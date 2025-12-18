@@ -2,6 +2,7 @@
 
 The project is organized into several folders and Python files, each with a specific responsibility:
 
+```text
 project/
 ├── preprocessing/
 │   ├── clean_and_dedup.py        # Remove strictly identical tweets (deduplicated *_clean.txt)
