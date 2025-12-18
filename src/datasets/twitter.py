@@ -5,15 +5,22 @@ import numpy as np
 from src.utils.text_analysis import get_word_frequencies, plot_top_words  # cf section suivante
 
 def load_training_tweets(data_dir="twitter-datasets", use_full=True,
-                         stopwords=None, do_plots=False):
+                         stopwords=None, do_plots=False,bert = False):
     data_dir = Path(data_dir)
-
-    if use_full:
-        pos_path = data_dir / "train_pos_full_processed.txt"
-        neg_path = data_dir / "train_neg_full_processed.txt"
+    if not bert:
+        if use_full:
+            pos_path = data_dir / "train_pos_full_processed.txt"
+            neg_path = data_dir / "train_neg_full_processed.txt"
+        else:
+            pos_path = data_dir / "train_pos_processed.txt"
+            neg_path = data_dir / "train_neg_processed.txt"
     else:
-        pos_path = data_dir / "train_pos_processed.txt"
-        neg_path = data_dir / "train_neg_processed.txt"
+        if use_full:
+            pos_path = data_dir / "train_pos_full.txt"
+            neg_path = data_dir / "train_neg_full.txt"
+        else:
+            pos_path = data_dir / "train_pos.txt"
+            neg_path = data_dir / "train_pos.txt"
 
     with open(pos_path, "r", encoding="utf-8") as f:
         pos_tweets = [line.strip() for line in f]
@@ -34,9 +41,13 @@ def load_training_tweets(data_dir="twitter-datasets", use_full=True,
     return tweets, y
 
 
-def load_test_tweets(data_dir="twitter-datasets"):
+def load_test_tweets(data_dir="twitter-datasets",bert = False):
     data_dir = Path(data_dir)
-    test_path = data_dir / "test_data_processed.txt"
+    if(not bert):
+        test_path = data_dir / "test_data.txt"
+    else:
+        test_path = data_dir / "test_data_processed.txt"
+
 
     with open(test_path, "r", encoding="utf-8") as f:
         tweets = [line.strip() for line in f]

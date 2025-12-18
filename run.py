@@ -52,9 +52,12 @@ if __name__ == '__main__':
     args = parse_args()
     set_seed(42)
     print("Loading data...")
-    train_texts, train_labels = load_training_tweets(use_full=False)
-    test_ids, test_texts = load_test_tweets()
-
+    if args.model == "bertweet":
+        train_texts, train_labels = load_training_tweets(use_full=False,bert=True)
+        test_ids, test_texts = load_test_tweets(bert=True)
+    else:
+        train_texts, train_labels = load_training_tweets(use_full=False)
+        test_ids, test_texts = load_test_tweets()
     X_train, X_val, y_train, y_val = train_test_split(
         train_texts,
         train_labels,
