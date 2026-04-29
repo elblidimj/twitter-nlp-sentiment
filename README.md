@@ -1,3 +1,37 @@
+# Emoji Polarity Classification on Twitter
+
+> Large-scale NLP study comparing lightweight models vs. transformers on 2.5M tweets — EPFL CS-433 Machine Learning Project (2025/2026)
+
+## Key Results
+
+| Model | Accuracy | F1-score | Parameters | Train Time |
+|-------|----------|----------|------------|------------|
+| Logistic Regression | 59.1% | 0.596 | — | — |
+| CNN | 85.24% | 0.850 | 8.4M | 25 min/epoch |
+| **BiLSTM** | **85.8%** | **0.861** | **4.2M** | **30 min/epoch** |
+| BERTweet | 92.1% | 0.920 | 125M | 95 min/epoch |
+
+**Key finding:** BiLSTM reaches 95% of BERTweet's performance with **30× fewer parameters** and **3× faster training** — demonstrating that domain-specific preprocessing and embedding adaptation can close most of the gap to large transformers.
+
+**Ablation — impact of preprocessing:**
+
+| Configuration | Accuracy | F1-score |
+|---------------|----------|----------|
+| BiLSTM without preprocessing | 73.1% | 0.755 |
+| BiLSTM with preprocessing | 85.8% | 0.861 |
+
+Preprocessing alone accounts for a **+12.7% accuracy gain**.
+
+## Problem
+
+Binary classification of tweets labeled by emoji polarity (`:)` → positive, `:(` → negative). The emoticons are removed from the text before training, making the task non-trivial due to Twitter's noisy language (slang, sarcasm, creative spelling, negation).
+
+## Stack
+
+Python · PyTorch · HuggingFace Transformers · BERTweet · NumPy
+
+---
+
 ## Project Structure
 
 The project is organized into several folders and Python files, each with a specific responsibility:
@@ -39,24 +73,19 @@ project/
 │       ├── io_utils.py           # File I/O helpers
 │       └── text_analysis.py      # Text analysis utilities
 │
-├── twitter_datasets/             # Dataset directory (must be added manually)
-│   ├── train_pos.txt
-│   ├── train_neg.txt
-│   ├── train_pos_full.txt
-│   ├── train_neg_full.txt
-│   └── test_data.txt
-│
 ├── ethics_oracle_eval.py          # Ethics: oracle sentiment vs emoji polarity (binary mapping)
 ├── ethics_oracle_neutral.py       # Ethics: quantify oracle neutral predictions
 ├── helpers.py                     # Shared helper functions
 ├── run.py                         # Main entry point to run training and evaluation
 ├── requirements.txt               # Python dependencies
 └── README.md                      # This file
-
-
 ```
+
 ## Requirements
-You can run ``pip install -r requirements.txt``
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Preprocessing Pipeline
 
@@ -84,11 +113,10 @@ Constructs a word co-occurrence matrix (`cooc.pkl`) from the cleaned positive an
 ### **glove_pretrained.py**
 Loads pretrained GloVe embeddings trained on large-scale Twitter data and aligns them with the project vocabulary.
 
-or 
+or
 
 ### **glove_trained.py**
 Trains GloVe embeddings from scratch using the task-specific co-occurrence matrix (`cooc.pkl`), generating embeddings learned directly from the project dataset.
-
 
 ---
 
@@ -104,38 +132,38 @@ Before running the models, ensure your project directory is set up as follows:
     * `train_pos.txt` & `train_neg.txt` (The smaller 200k dataset)
     * `test_data.txt` (The unlabeled test set)
 
-2. **Preprocessing Outputs**: All preprocessing steps (tokenization, co-occurrence building, and GloVe training) must be completed first to generate the following files in your root directory:
+2. **Preprocessing Outputs**: All preprocessing steps must be completed first to generate:
     * `vocab.pkl`: The processed vocabulary mapping.
-    * `embeddings.npy`: The trained word vectors (GloVe) used as the embedding weights for the BiLSTM and CNN.
+    * `embeddings.npy`: The trained word vectors (GloVe) used as embedding weights for BiLSTM and CNN.
 
-You must also manually download GloVe embeddings from http://nlp.stanford.edu/data/glove.twitter.27B.zip and put them 50d version at the root of the project
+You must also manually download GloVe embeddings from http://nlp.stanford.edu/data/glove.twitter.27B.zip and place the 50d version at the root of the project.
 
-## How to run the pipeline
+## How to Run
 
-### Best accuracy : BERTweet 
-Run `run.py` to get the best accuracy performed and submitted to aicrowd. It finetunes a BERTweet model by aligning the preprocessing existing in the dataset to the one that was used for training BERTweet.
+### Best accuracy: BERTweet
+```bash
+python run.py
+```
+Finetunes BERTweet by aligning the preprocessing to the one used during BERTweet pretraining.
 
-## BiLSTM
-Run `run.py --model bilstm` to run the bilstm model on the tuned hyperparameters
+### BiLSTM
+```bash
+python run.py --model bilstm
+```
 
-## CNN
-Run `run.py --model cnn` to run the cnn model on the tuned hyperparameters
+### CNN
+```bash
+python run.py --model cnn
+```
 
-For CNN and BiLSTM an argument `--tuning` also exists, which when set to True allows to run a grid search with bilstm and cross validation with CNN.
+For CNN and BiLSTM, `--tuning True` enables grid search (BiLSTM) or cross-validation (CNN).
 
 ## Oracle Evaluation Pipeline
 
 To assess the ethical risk of misinterpreting our model as a sentiment classifier, we evaluate the relationship between **emoji-derived polarity labels** and predictions from a strong, independently trained Twitter sentiment model (**oracle**).
 
 ### `ethics_oracle_eval.py`
-
-Runs a pretrained Twitter sentiment classifier (`cardiffnlp/twitter-roberta-base-sentiment`) on the training tweets (full or not full) and forces its three-class output (**negative, neutral, positive**) into a binary decision by mapping neutral tweets to a polarity via **positive-vs-negative logits**.  
-The resulting predictions are compared against the emoji polarity labels using **accuracy**, **F1-score**, and a **confusion matrix**.  
+Runs `cardiffnlp/twitter-roberta-base-sentiment` on training tweets and forces its three-class output into a binary decision. Results are compared against emoji polarity labels using accuracy, F1-score, and a confusion matrix.
 
 ### `ethics_oracle_neutral.py`
-
-Runs the same oracle **without collapsing the neutral class**.  
-It explicitly counts tweets predicted as **neutral** by the oracle, allowing us to quantify how often the text expresses no clear sentiment while still being assigned a binary emoji polarity label.  
-This analysis highlights that a large fraction of tweets are neutral according to the oracle, implying that any binary sentiment interpretation in such cases would be inherently **arbitrary**.
-
-Together, these scripts provide **quantitative evidence** that emoji polarity classification is **not equivalent to sentiment analysis**.
+Runs the same oracle **without collapsing the neutral class** to quantify how often text expresses no clear sentiment while still being assigned a binary emoji polarity label — providing evidence that emoji polarity classification is **not equivalent to sentiment analysis**.
