@@ -22,6 +22,9 @@
 
 Preprocessing alone accounts for a **+12.7% accuracy gain**.
 
+## Report
+Full project report available [here](report.pdf).
+
 ## Problem
 
 Binary classification of tweets labeled by emoji polarity (`:)` → positive, `:(` → negative). The emoticons are removed from the text before training, making the task non-trivial due to Twitter's noisy language (slang, sarcasm, creative spelling, negation).
