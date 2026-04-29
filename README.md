@@ -170,3 +170,9 @@ Runs `cardiffnlp/twitter-roberta-base-sentiment` on training tweets and forces i
 
 ### `ethics_oracle_neutral.py`
 Runs the same oracle **without collapsing the neutral class** to quantify how often text expresses no clear sentiment while still being assigned a binary emoji polarity label — providing evidence that emoji polarity classification is **not equivalent to sentiment analysis**.
+
+## Authors
+
+- Majd El Blidi — [github.com/elblidimj](https://github.com/elblidimj)
+- Elyas El Khaldi
+- Mohamed Abbes
