@@ -58,20 +58,26 @@ def augment_line(line):
     for contraction, expansion in CONTRACTIONS.items():
         text = text.replace(contraction, expansion)
 
-    text = re.sub(r"(?::|;|=)(?:-)?(?:\)|\}|\]|>|D)", " <SMILE> ", text)
+    # Heart first, so "<3" is not read as a mouth (":<3") or as a number.
+    text = re.sub(r"<3+", " <HEART> ", text)
+
+    # The data is lowercase, so the "big grin" is ":d" (not ":D").
+    text = re.sub(r"(?::|;|=)(?:-)?(?:\)|\}|\]|>|d(?!\w))", " <SMILE> ", text)
     text = re.sub(r"(?::|;|=)(?:-)?(?:\(|\{|\[|<)", " <SAD> ", text)
 
     text = text.replace('...', ' <DOTS> ')
     text = text.replace('!', ' ! ')
     text = text.replace('?', ' ? ')
 
+    # Numbers must be replaced BEFORE the <REP_n> tags are created,
+    # otherwise the digit inside <REP_n> would be replaced by <NUM> too.
+    text = re.sub(r'\d+', ' <NUM> ', text)
+
     def char_rep(match):
         char = match.group(1)
         full_seq = match.group(0)
         return f"{char}{char} <REP_{len(full_seq)}> "
     text = re.sub(r"([a-z])\1{2,}", char_rep, text)
-
-    text = re.sub(r'\d+', ' <NUM> ', text)
 
     text = re.sub(r'[^\w\s<!>\?]', ' ', text)
 
