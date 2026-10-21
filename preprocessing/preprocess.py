@@ -22,18 +22,37 @@ CONTRACTIONS = {
 NEGATIONS = {"not", "no", "never", "nor", "nothing", "nowhere", "cannot", "none", "neither"}
 
 
+NEG_SCOPE = 2                       # how many words after a negation get _NEG
+NEG_STOPS = {"!", "?", "<DOTS>"}    # a negation does not reach past these
+
+
 def handle_negation(tokens):
-    """Appends _NEG to the word immediately following a negation term."""
+    """Appends _NEG to the NEG_SCOPE words that follow a negation term."""
     new_toks = []
-    neg_active = False
+    remaining = 0
     for t in tokens:
-        if neg_active:
-            if not t.startswith("<"): 
-                t = t + "_NEG"
-            neg_active = False
+        base = t
+        if base in NEG_STOPS:
+            remaining = 0
+        elif remaining > 0 and not base.startswith("<"):
+            t = t + "_NEG"
+            remaining -= 1
         new_toks.append(t)
-        if t in NEGATIONS or t.endswith("not"):
-            neg_active = True
+        if base in NEGATIONS:
+            remaining = NEG_SCOPE
+    return new_toks
+
+
+def handle_char_repetition(tokens):
+    """'loool' -> 'lool' followed by a <REP_3> tag, so the word stays in one piece."""
+    new_toks = []
+    for t in tokens:
+        runs = [m.group(0) for m in re.finditer(r"([a-z])\1{2,}", t)]
+        if runs and not t.startswith("<"):
+            new_toks.append(re.sub(r"([a-z])\1{2,}", r"\1\1", t))
+            new_toks.append(f"<REP_{max(len(r) for r in runs)}>")
+        else:
+            new_toks.append(t)
     return new_toks
 
 def handle_word_repetition(tokens):
@@ -71,15 +90,9 @@ def augment_line(line):
     text = text.replace('!', ' ! ')
     text = text.replace('?', ' ? ')
 
-    # Numbers must be replaced BEFORE the <REP_n> tags are created,
-    # otherwise the digit inside <REP_n> would be replaced by <NUM> too.
+    # Numbers are replaced here, before the <REP_n> tags are created (later,
+    # on tokens), so the digit inside <REP_n> is never turned into <NUM>.
     text = re.sub(r'\d+', ' <NUM> ', text)
-
-    def char_rep(match):
-        char = match.group(1)
-        full_seq = match.group(0)
-        return f"{char}{char} <REP_{len(full_seq)}> "
-    text = re.sub(r"([a-z])\1{2,}", char_rep, text)
 
     text = re.sub(r'[^\w\s<!>\?]', ' ', text)
 
@@ -87,6 +100,7 @@ def augment_line(line):
 
     toks = text.split()
     toks = handle_word_repetition(toks)
+    toks = handle_char_repetition(toks)
     toks = handle_negation(toks)
     
     return ' '.join(toks)
