@@ -63,7 +63,9 @@ def augment_line(line):
 
     # The data is lowercase, so the "big grin" is ":d" (not ":D").
     text = re.sub(r"(?::|;|=)(?:-)?(?:\)|\}|\]|>|d(?!\w))", " <SMILE> ", text)
-    text = re.sub(r"(?::|;|=)(?:-)?(?:\(|\{|\[|<)", " <SAD> ", text)
+    text = re.sub(r"(?::|;|=)(?:-)?p(?!\w)", " <TONGUE> ", text)
+    # ":/" and ":|" lean negative; "(?!/)" avoids matching the "://" of a URL.
+    text = re.sub(r"(?::|;|=)(?:-)?(?:\(|\{|\[|<|\||/(?!/))", " <SAD> ", text)
 
     text = text.replace('...', ' <DOTS> ')
     text = text.replace('!', ' ! ')
